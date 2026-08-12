@@ -16,7 +16,8 @@ library(tensortools)
 library(tidyverse)
 ```
 
-# Tensor-normal Rosenblatt goodness-of-fit test
+
+# Rosenblatt diagnostics and goodness-of-fit tests
 
 This section implements a Rosenblatt goodness-of-fit test specifically for
 the tensor-variate normal distribution. Suppose that
@@ -54,8 +55,9 @@ the coordinate ordering induced by the package's tensor vectorization.
 
 Because the parameters are estimated from the same data being tested, the
 usual reference distributions for goodness-of-fit statistics do not apply.
-The final function below uses a parametric bootstrap: every bootstrap sample
-is simulated, refitted, transformed, and retested.
+The implementation sections below derive the transformation and a refitted
+parametric-bootstrap prototype. All runnable examples are consolidated in
+**Step 9: Runnable Rosenblatt examples**. Run those example chunks in order.
 
 ## Step 1: Compute tensor-normal Rosenblatt residuals
 
@@ -188,18 +190,6 @@ tensor_normal_rosenblatt <- function(
 }
 ```
 
-
-```{r}
-test <- tensor_normal_rosenblatt(normal_draws)
-
-test$uniforms |>
-  c() |> 
-  as_tibble() |> 
-  ggplot() +
-  geom_density(aes(x = value), color = "black", fill = "pink") +
-  geom_function(fun = dunif) +
-  theme_minimal()
-```
 
 ## Step 2: Define complementary goodness-of-fit components
 
@@ -733,74 +723,13 @@ gof_tensor_normal_rosenblatt <- function(
 }
 ```
 
-## Step 4: Example and interpretation
+## Step 4: Interpreting bootstrap components
 
-The example is not evaluated while knitting because the refitted bootstrap can
-take time. A small `B` is useful while checking the workflow; a final analysis
-should generally use at least 999 successful bootstrap replicates.
-
-```{r tensor-normal-rosenblatt-example, eval=FALSE}
-set.seed(2026)
-
-true_mean <- array(
-  0,
-  dim = c(3, 4, 2)
-)
-
-true_sigmas <- list(
-  toeplitz(0.6^(0:2)),
-  toeplitz(0.5^(0:3)),
-  matrix(c(1, 0.4, 0.4, 1), nrow = 2)
-)
-
-true_skew <- array(seq(by = 0.1, length = 24), dim = c(3, 4, 2))
-
-normal_draws <- rtskewt(
-  n = 100,
-  mu = true_mean,
-  sigmas = true_sigmas,
-  skew = true_skew,
-  nu = 20
-)
-
-# Use B = 49 only for a quick check. Increase to B = 999 or more for a final
-# reported p-value.
-rosenblatt_result <- gof_tensor_normal_rosenblatt(
-  draws = normal_draws,
-  B = 49,
-  seed = 2026
-)
-
-# The printed p-value is the global, bootstrap-calibrated goodness-of-fit test.
-rosenblatt_result
-
-# These p-values indicate which type of discrepancy is most evident.
-rosenblatt_result$component_p_values
-
-# Under a good fit, this histogram should be approximately flat.
-hist(
-  as.vector(rosenblatt_result$uniforms),
-  breaks = 20,
-  probability = TRUE,
-  main = "Tensor-normal Rosenblatt residuals",
-  xlab = "Uniform residual"
-)
-abline(h = 1, col = "red", lwd = 2)
-
-# Each tensor-level squared norm should be approximately chi-squared with
-# prod(draw_shape(normal_draws)) degrees of freedom.
-qqplot(
-  qchisq(
-    ppoints(n_draws(normal_draws)),
-    df = prod(draw_shape(normal_draws))
-  ),
-  sort(rosenblatt_result$radial_distances),
-  xlab = "Theoretical chi-squared quantiles",
-  ylab = "Observed squared Frobenius norms",
-  main = "Radial Rosenblatt diagnostic"
-)
-abline(a = 0, b = 1, col = "red", lwd = 2)
-```
+The runnable normal and skew-
+\(t\) examples are collected in Step 9 so that no example depends on an object
+defined many pages earlier. The refitted bootstrap can take considerable time;
+use a small `B` only while checking code and at least 999 successful replicates
+for a reported analysis.
 
 Interpret the global p-value first. The component p-values are diagnostic:
 
@@ -1422,49 +1351,285 @@ gof_tensor_rosenblatt <- function(
 }
 ```
 
-## Step 9: Calling the test
+## Step 9: Runnable Rosenblatt examples
 
-Only the `model` argument changes across the five fitted distributions:
+This is the only example section for the Rosenblatt transformation. The chunks
+are self-contained as a group and should be run in order. They use the current
+exported package functions rather than reimplementing the conditional CDF in
+the analysis file.
 
-```{r tensor-all-models-rosenblatt-examples, eval=FALSE}
-normal_result <- gof_tensor_rosenblatt(
-  normal_draws, model = "normal", B = 100, seed = 2026
+### Example 1: Simulate normal and skew-\(t\) tensor observations
+
+Both samples use the same \(2\times3\) tensor shape, location, and separable
+covariance factors. The skew-\(t\) sample additionally uses a skew tensor and
+degrees of freedom \(\nu=7\).
+
+```{r rosenblatt-example-data}
+set.seed(2)
+
+rosenblatt_dims <- c(2L, 3L)
+
+rosenblatt_mu <- array(
+  c(-0.3, -0.1, 0.1, 0.3, 0.5, 0.7),
+  dim = rosenblatt_dims
 )
 
-skewt_result <- gof_tensor_rosenblatt(
-  skewt_draws, model = "skewt", B = 100, seed = 2026
+rosenblatt_sigmas <- list(
+  matrix(c(1.0, 0.35, 0.35, 0.8), nrow = 2),
+  toeplitz(0.45^(0:2))
 )
 
-vargamma_result <- gof_tensor_rosenblatt(
-  vargamma_draws, model = "vargamma", B = 999, seed = 2026
+rosenblatt_skew <- array(
+  c(0.4, -0.2, 0.3, 0, 0.15, -0.1),
+  dim = rosenblatt_dims
 )
 
-invgauss_result <- gof_tensor_rosenblatt(
-  invgauss_draws, model = "invgauss", B = 999, seed = 2026
+rosenblatt_nu <- 7
+rosenblatt_n <- 100
+
+rosenblatt_normal_draws <- rtnorm(
+  n = rosenblatt_n,
+  mu = rosenblatt_mu,
+  sigmas = rosenblatt_sigmas
 )
 
-genhyper_result <- gof_tensor_rosenblatt(
-  genhyper_draws, model = "genhyper", B = 999, seed = 2026
+rosenblatt_skewt_draws <- rtskewt(
+  n = rosenblatt_n,
+  mu = rosenblatt_mu,
+  sigmas = rosenblatt_sigmas,
+  skew = rosenblatt_skew,
+  nu = rosenblatt_nu
 )
-
-skewt_result
-skewt_result$component_p_values
-
-hist(
-  as.vector(skewt_result$uniforms),
-  breaks = 20,
-  probability = TRUE,
-  main = "Skew-t Rosenblatt residuals",
-  xlab = "Uniform residual"
-)
-abline(h = 1, col = "red", lwd = 2)
 ```
 
-The skewed transforms are substantially slower than the normal transform
-because every tensor entry requires one numerical integral. Start with small
-tensors and a small exploratory `B`; for a final analysis, use at least 999
-successful bootstrap replicates and verify that tighter `cdf_rel_tol` values
-do not materially alter the result.
+### Example 2: Transform using known parameters
+
+Known parameters are useful for validating the transformation. Under the
+generating model, all returned entries should be independent Uniform\((0,1)\).
+The output remains a `tensor` object with the same number and shape of draws.
+
+```{r rosenblatt-known-parameter-transforms}
+rosenblatt_normal_known <- tensor_rosenblatt(
+  draws = rosenblatt_normal_draws,
+  model = "normal",
+  parameters = list(
+    mu = rosenblatt_mu,
+    sigmas = rosenblatt_sigmas
+  )
+)
+
+rosenblatt_skewt_known <- tensor_rosenblatt(
+  draws = rosenblatt_skewt_draws,
+  model = "skewt",
+  parameters = list(
+    mu = rosenblatt_mu,
+    skew = rosenblatt_skew,
+    sigmas = rosenblatt_sigmas,
+    nu = rosenblatt_nu
+  )
+)
+
+c(
+  normal_min = min(unclass(rosenblatt_normal_known)),
+  normal_max = max(unclass(rosenblatt_normal_known)),
+  skewt_min = min(unclass(rosenblatt_skewt_known)),
+  skewt_max = max(unclass(rosenblatt_skewt_known))
+)
+```
+
+For the skew-\(t\) model, `rosenblatt_tskewt()` is a convenience wrapper around
+the second call above. Use whichever interface reads more clearly in the
+surrounding analysis; it is unnecessary to run both.
+
+### Example 3: Plot the main diagnostics
+
+The helper below produces three plots:
+
+1. a histogram, which should be approximately flat;
+2. a uniform Q--Q plot, which should follow the diagonal;
+3. a radial Q--Q plot based on
+   \(\sum_j\{\Phi^{-1}(U_{ij})\}^2\), which should follow
+   \(\chi^2_p\) when parameters are known.
+
+```{r rosenblatt-diagnostic-helper}
+rosenblatt_matrix <- function(uniform_tensor) {
+  matrix(
+    as.numeric(unclass(uniform_tensor)),
+    nrow = n_draws(uniform_tensor),
+    ncol = prod(draw_shape(uniform_tensor))
+  )
+}
+
+plot_rosenblatt_diagnostics <- function(uniform_tensor, label) {
+  uniforms <- rosenblatt_matrix(uniform_tensor)
+  clipping <- 1e-12
+  normal_scores <- matrix(
+    qnorm(pmin(1 - clipping, pmax(clipping, uniforms))),
+    nrow = nrow(uniforms),
+    ncol = ncol(uniforms)
+  )
+  radial_distances <- rowSums(normal_scores^2)
+
+  old_par <- par(mfrow = c(1, 3))
+  on.exit(par(old_par), add = TRUE)
+
+  hist(
+    as.numeric(uniforms),
+    breaks = 20,
+    probability = TRUE,
+    main = paste(label, "histogram"),
+    xlab = "Rosenblatt value",
+    ylim = c(0, 1.4)
+  )
+  abline(h = 1, col = "red", lwd = 2)
+
+  qqplot(
+    ppoints(length(uniforms)),
+    sort(as.numeric(uniforms)),
+    main = paste(label, "uniform Q-Q"),
+    xlab = "Theoretical uniform quantiles",
+    ylab = "Observed quantiles"
+  )
+  abline(a = 0, b = 1, col = "red", lwd = 2)
+
+  qqplot(
+    qchisq(ppoints(nrow(uniforms)), df = ncol(uniforms)),
+    sort(radial_distances),
+    main = paste(label, "radial Q-Q"),
+    xlab = "Theoretical chi-squared quantiles",
+    ylab = "Observed radial distances"
+  )
+  abline(a = 0, b = 1, col = "red", lwd = 2)
+
+  invisible(list(
+    uniforms = uniforms,
+    normal_scores = normal_scores,
+    radial_distances = radial_distances
+  ))
+}
+```
+
+```{r rosenblatt-known-parameter-plots, fig.width=12, fig.height=4}
+normal_diagnostics <- plot_rosenblatt_diagnostics(
+  rosenblatt_normal_known,
+  label = "Tensor normal"
+)
+
+skewt_diagnostics <- plot_rosenblatt_diagnostics(
+  rosenblatt_skewt_known,
+  label = "Tensor skew-t"
+)
+```
+
+### Example 4: Transform using fitted skew-\(t\) parameters
+
+In an application, fit the model once and pass the fitted list directly to
+`tensor_rosenblatt()`. These residuals remain valuable graphically, but they
+are not exact independent uniforms because the same observations estimated the
+parameters.
+
+```{r rosenblatt-fitted-skewt}
+rosenblatt_skewt_fit <- tensor_mle(
+  rosenblatt_skewt_draws,
+  model = "skewt",
+  quiet = TRUE
+)
+
+rosenblatt_skewt_fitted <- tensor_rosenblatt(
+  draws = rosenblatt_skewt_draws,
+  model = "skewt",
+  parameters = rosenblatt_skewt_fit
+)
+
+rosenblatt_skewt_fit$nu
+```
+
+```{r rosenblatt-fitted-skewt-plots, fig.width=12, fig.height=4}
+fitted_skewt_diagnostics <- plot_rosenblatt_diagnostics(
+  rosenblatt_skewt_fitted,
+  label = "Fitted tensor skew-t"
+)
+```
+
+### Example 5: Obtain a formal multiplier-calibrated test
+
+`tensor_gof_scores()` accounts for fitted parameters using analytic scores and
+a weighted multiplier calibration. It is much faster than repeatedly fitting
+bootstrap tensor samples. `B = 199` is adequate for checking the workflow;
+increase it to at least 1999 for a reported p-value. Keep the score dimension
+and basis dimension small relative to the number of tensor observations.
+
+```{r rosenblatt-multiplier-test}
+rosenblatt_skewt_gof <- tensor_gof_scores(
+  draws = rosenblatt_skewt_draws,
+  model = "skewt",
+  fit = rosenblatt_skewt_fit,
+  marginal_degree = 2,
+  include_interactions = TRUE,
+  max_basis = 20,
+  calibration = "multiplier",
+  B = 199,
+  seed = 2026
+)
+
+rosenblatt_skewt_gof
+
+c(
+  score_dimension = rosenblatt_skewt_gof$score_dimension,
+  information_rank = rosenblatt_skewt_gof$information_rank,
+  basis_rank = rosenblatt_skewt_gof$adjusted_covariance_rank
+)
+```
+
+Do not substitute `tensor_score_gof()` here: that older function uses the
+experimental asymptotic chi-squared calibration. The multiplier calibration in
+`tensor_gof_scores()` is the preferred package implementation.
+
+### Example 6: Optional full parametric bootstrap
+
+The earlier `gof_tensor_rosenblatt()` prototype in this document simulates,
+refits, and retransforms every bootstrap dataset. It is statistically direct
+but substantially slower. This chunk is deliberately not evaluated when the
+document is knitted. Run it interactively with a small `B`, then use at least
+999 successful replicates for a reported result.
+
+```{r rosenblatt-full-bootstrap, eval=FALSE}
+rosenblatt_skewt_bootstrap_quick <- gof_tensor_rosenblatt(
+  draws = rosenblatt_skewt_draws,
+  model = "skewt",
+  B = 19,
+  seed = 2026
+)
+
+rosenblatt_skewt_bootstrap_quick
+rosenblatt_skewt_bootstrap_quick$component_p_values
+
+# Final analysis:
+# rosenblatt_skewt_bootstrap_final <- gof_tensor_rosenblatt(
+#   draws = rosenblatt_skewt_draws,
+#   model = "skewt",
+#   B = 999,
+#   seed = 2026
+# )
+```
+
+### Model-specific parameter names
+
+The same `tensor_rosenblatt()` interface supports all five package models:
+
+| `model` | Additional entries in `parameters` |
+|:--|:--|
+| `"normal"` | none beyond `mu` and `sigmas` |
+| `"skewt"` | `skew`, `nu` |
+| `"vargamma"` | `skew`, `gamma` (or `scale`) |
+| `"invgauss"` | `skew`, `kappa` |
+| `"genhyper"` | `skew`, `lambda`, `omega` |
+
+The skewed transforms require one numerical integral per tensor entry. For
+large tensors, first compute and inspect the residual diagnostics. A full
+refitted bootstrap may be impractical, and a score-adjusted formal test is not
+reliable when its nuisance-score dimension approaches or exceeds the number of
+tensor observations.
 
 # Simple parameter-adjusted characteristic-function test
 
