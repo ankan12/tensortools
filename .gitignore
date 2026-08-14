@@ -58,3 +58,6 @@ paper/data/GRABMyo/*
 # Large external datasets kept out of the package commit view.
 paper/comboFM_data/
 raw/
+
+/.quarto/
+**/*.quarto_ipynb

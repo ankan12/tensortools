@@ -1,0 +1,449 @@
+---
+title: "Rosenblatt Derivation"
+format: html
+---
+
+# Rosenblatt transformation for a normal distribution
+
+This section derives the Rosenblatt transformation first for a simple
+multivariate normal random vector and then for a tensor-variate normal random
+variable. The tensor result is the same normal calculation applied using the
+Kronecker-structured tensor covariance.
+
+## 1. The general Rosenblatt transformation
+
+Let
+
+$$
+X=(X_1,\ldots,X_p)^\top
+$$
+
+be a continuous random vector with joint distribution function $F$. The
+Rosenblatt transformation is defined one coordinate at a time:
+
+$$
+\begin{aligned}
+U_1
+  &=F_{X_1}(X_1),\\
+U_2
+  &=F_{X_2\mid X_1}(X_2\mid X_1),\\
+U_3
+  &=F_{X_3\mid X_1,X_2}(X_3\mid X_1,X_2),\\
+&\ \vdots\\
+U_p
+  &=F_{X_p\mid X_1,\ldots,X_{p-1}}
+    (X_p\mid X_1,\ldots,X_{p-1}).
+\end{aligned}
+$$
+
+If the assumed joint distribution is correct and its parameters are known,
+then
+
+$$
+U_1,\ldots,U_p \stackrel{\mathrm{ind}}{\sim} \operatorname{Uniform}(0,1).
+$$
+
+The important point is that each coordinate is transformed using its
+distribution **conditional on all the coordinates that came before it**.
+
+## 2. Begin with a two-dimensional normal example
+
+Suppose
+
+$$
+\begin{pmatrix}X_1\\X_2\end{pmatrix}
+\sim
+N_2\left[
+\begin{pmatrix}\mu_1\\\mu_2\end{pmatrix},
+\begin{pmatrix}
+\sigma_1^2 & \rho\sigma_1\sigma_2\\
+\rho\sigma_1\sigma_2 & \sigma_2^2
+\end{pmatrix}
+\right].
+$$
+
+### Step 2.1: Transform the first coordinate
+
+The marginal distribution of the first coordinate is
+
+$$
+X_1\sim N(\mu_1,\sigma_1^2).
+$$
+
+Therefore,
+
+$$
+Z_1=\frac{X_1-\mu_1}{\sigma_1}
+$$
+
+is standard normal, and the first Rosenblatt coordinate is
+
+$$
+U_1
+=F_{X_1}(X_1)
+=\Phi\left(\frac{X_1-\mu_1}{\sigma_1}\right)
+=\Phi(Z_1).
+$$
+
+### Step 2.2: Find the conditional distribution of the second coordinate
+
+For a bivariate normal distribution,
+
+$$
+X_2\mid X_1=x_1
+\sim
+N\left(
+\mu_2+\rho\frac{\sigma_2}{\sigma_1}(x_1-\mu_1),
+\ \sigma_2^2(1-\rho^2)
+\right).
+$$
+
+After subtracting the conditional mean and dividing by the conditional
+standard deviation, we obtain
+
+$$
+Z_2
+=
+\frac{
+X_2-\mu_2-\rho(\sigma_2/\sigma_1)(X_1-\mu_1)
+}{
+\sigma_2\sqrt{1-\rho^2}
+}.
+$$
+
+Conditional on $X_1$, this quantity is standard normal. Thus the second
+Rosenblatt coordinate is
+
+$$
+\begin{aligned}
+U_2
+&=F_{X_2\mid X_1}(X_2\mid X_1)\\
+&=\Phi\left[
+\frac{
+X_2-\mu_2-\rho(\sigma_2/\sigma_1)(X_1-\mu_1)
+}{
+\sigma_2\sqrt{1-\rho^2}
+}
+\right]\\
+&=\Phi(Z_2).
+\end{aligned}
+$$
+
+Under the assumed bivariate normal model, $Z_1$ and $Z_2$ are independent
+standard normal variables. Consequently, $U_1$ and $U_2$ are independent
+uniform variables.
+
+## 3. Write the same calculation using a Cholesky factor
+
+Now let
+
+$$
+X\sim N_p(\mu,\Sigma),
+$$
+
+where $\Sigma$ is positive definite. Let
+
+$$
+\Sigma=LL^\top
+$$
+
+be its lower-triangular Cholesky decomposition. The lower-triangular form is
+important because it preserves the sequential conditioning used by the
+Rosenblatt transformation.
+
+Define
+
+$$
+Z=L^{-1}(X-\mu).
+$$
+
+Equivalently,
+
+$$
+X=\mu+LZ,
+\qquad
+Z\sim N_p(0,I_p).
+$$
+
+Because $L$ is lower triangular, the first few coordinates of $X$ satisfy
+
+$$
+\begin{aligned}
+X_1
+  &=\mu_1+L_{11}Z_1,\\
+X_2
+  &=\mu_2+L_{21}Z_1+L_{22}Z_2,\\
+X_3
+  &=\mu_3+L_{31}Z_1+L_{32}Z_2+L_{33}Z_3.
+\end{aligned}
+$$
+
+More generally,
+
+$$
+X_j
+=
+\mu_j+
+\sum_{k=1}^{j-1}L_{jk}Z_k+
+L_{jj}Z_j.
+$$
+
+### Step 3.1: Condition on the preceding coordinates
+
+Once $X_1,\ldots,X_{j-1}$ have been observed, the corresponding values
+$Z_1,\ldots,Z_{j-1}$ are known from forward substitution. Therefore,
+
+$$
+X_j\mid X_1,\ldots,X_{j-1}
+\sim
+N\left(
+\mu_j+\sum_{k=1}^{j-1}L_{jk}Z_k,
+L_{jj}^2
+\right).
+$$
+
+### Step 3.2: Standardize using that conditional distribution
+
+The conditional standardized value is
+
+$$
+\frac{
+X_j-\mu_j-\sum_{k=1}^{j-1}L_{jk}Z_k
+}{L_{jj}}
+=Z_j.
+$$
+
+It follows that the $j$th Rosenblatt coordinate is simply
+
+$$
+\boxed{U_j=\Phi(Z_j)},
+\qquad
+Z=L^{-1}(X-\mu).
+$$
+
+Thus the complete normal Rosenblatt transformation can be summarized as
+
+$$
+\boxed{
+U
+=
+\Phi\left{L^{-1}(X-\mu)\right},
+}
+$$
+
+where $\Phi$ is applied separately to every coordinate.
+
+This is not just arbitrary whitening. Using the **lower-triangular** Cholesky
+factor makes each $Z_j$ exactly the standardized residual from the conditional
+distribution of $X_j$ given the preceding coordinates.
+
+# Rosenblatt transformation for a tensor-variate normal distribution
+
+## 4. Specify the tensor-normal model
+
+Let $\mathcal X$ be a $D$-way tensor with dimensions
+$p_1\times\cdots\times p_D$. Suppose
+
+$$
+\mathcal X
+\sim
+\operatorname{TVN}
+(\mathcal M,\Sigma_1,\ldots,\Sigma_D),
+$$
+
+where $\mathcal M$ is the mean tensor and $\Sigma_d$ describes covariance
+along tensor mode $d$.
+
+Let
+
+$$
+x=\operatorname{vec}(\mathcal X),
+\qquad
+\mu=\operatorname{vec}(\mathcal M).
+$$
+
+Using the usual column-major vectorization convention,
+
+$$
+x
+\sim
+N_p(\mu,\Sigma),
+\qquad
+p=\prod_{d=1}^D p_d,
+$$
+
+with
+
+$$
+\Sigma
+=
+\Sigma_D\otimes\cdots\otimes\Sigma_1.
+$$
+
+This equation is where the complete tensor covariance structure enters the
+Rosenblatt transformation.
+
+## 5. Obtain the tensor-normal Cholesky factor
+
+For each mode, take the lower-triangular Cholesky decomposition
+
+$$
+\Sigma_d=L_dL_d^\top.
+$$
+
+Define
+
+$$
+L=L_D\otimes\cdots\otimes L_1.
+$$
+
+Using the Kronecker-product identity
+
+$$
+(A\otimes B)(C\otimes D)=(AC)\otimes(BD),
+$$
+
+we have
+
+$$
+\begin{aligned}
+LL^\top
+&=(L_D\otimes\cdots\otimes L_1)
+  (L_D^\top\otimes\cdots\otimes L_1^\top)\\
+&=(L_DL_D^\top)\otimes\cdots\otimes(L_1L_1^\top)\\
+&=\Sigma_D\otimes\cdots\otimes\Sigma_1\\
+&=\Sigma.
+\end{aligned}
+$$
+
+Therefore, $L$ is the lower-triangular Cholesky factor of the full vectorized
+tensor covariance.
+
+## 6. Standardize the tensor observation
+
+Define
+
+$$
+z
+=
+L^{-1}(x-\mu).
+$$
+
+Under the tensor-normal model,
+
+$$
+z\sim N_p(0,I_p),
+$$
+
+so its coordinates are independent standard normal variables. The tensor-normal
+Rosenblatt values are therefore
+
+$$
+\boxed{
+u_j=\Phi(z_j),
+\qquad j=1,\ldots,p.
+}
+$$
+
+Equivalently, all steps can be written together as
+
+$$
+\boxed{
+u
+=
+\Phi\left[
+(L_D\otimes\cdots\otimes L_1)^{-1}
+\left{
+\operatorname{vec}(\mathcal X)-
+\operatorname{vec}(\mathcal M)
+\right}
+\right].
+}
+$$
+
+## 7. Equivalent mode-by-mode tensor calculation
+
+The same standardization can be performed without explicitly constructing the
+large Kronecker product. Let
+
+$$
+\mathcal E=\mathcal X-\mathcal M.
+$$
+
+Then whiten the residual tensor along every mode:
+
+$$
+\mathcal Z
+=
+\mathcal E
+\times_1 L_1^{-1}
+\times_2 L_2^{-1}
+\cdots
+\times_D L_D^{-1},
+$$
+
+where $\times_d$ denotes multiplication along mode $d$. With compatible
+vectorization and mode-product conventions,
+
+$$
+\operatorname{vec}(\mathcal Z)
+=
+(L_D\otimes\cdots\otimes L_1)^{-1}
+\operatorname{vec}(\mathcal E)
+=z.
+$$
+
+Finally, apply $\Phi$ element by element:
+
+$$
+\mathcal U=\Phi(\mathcal Z).
+$$
+
+This mode-by-mode form uses all of the tensor covariance matrices while
+avoiding construction of a potentially very large full covariance matrix.
+
+## 8. What should be observed under a correct model?
+
+For each tensor observation, the derivation produces
+
+$$
+u_1,\ldots,u_p.
+$$
+
+If the tensor-normal model and its parameters are correct, then these values
+should be
+
+$$
+u_1,\ldots,u_p
+\stackrel{\mathrm{ind}}{\sim}
+\operatorname{Uniform}(0,1).
+$$
+
+A diagnostic can therefore examine:
+
+1. **Uniformity:** histograms, uniform Q--Q plots, or a uniformity statistic;
+2. **Independence within a tensor:** correlations or other dependence measures
+   among the transformed coordinates; and
+3. **Independence across observations:** dependence among transformed values
+   from different independently sampled tensors.
+
+When $\mathcal M$ and the covariance matrices are replaced by estimates from
+the same data, the transformed values are not exactly independent uniforms in
+finite samples. For a formal goodness-of-fit test, the null distribution of
+the diagnostic statistic should therefore be obtained using a parametric
+bootstrap that repeats both model fitting and transformation.
+
+## 9. Summary of the calculation
+
+For one tensor observation:
+
+1. Subtract the fitted or known mean tensor:
+   $\mathcal E=\mathcal X-\mathcal M$.
+2. Compute a lower Cholesky factor $L_d$ for every mode covariance
+   $\Sigma_d$.
+3. Whiten $\mathcal E$ along all modes to obtain $\mathcal Z$.
+4. Vectorize $\mathcal Z$ in the same order used by the model.
+5. Apply the univariate standard-normal CDF to every entry:
+   $u_j=\Phi(z_j)$.
+6. Under the correct model with known parameters, the resulting values are
+   independent $\operatorname{Uniform}(0,1)$ variables.
