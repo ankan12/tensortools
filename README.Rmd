@@ -154,12 +154,12 @@ tensor_prod(A, x)
 
 The density function of the multilinear normal distribution is @tensornormprop
 
-$$
+```math
 f(x) =
 (2\pi)^{-p^{*}/2}
 \biggl(\prod_{i=1}^{k} |\Sigma_i|^{-p^{*}/(2p_i)}\biggr)
 \exp\biggl\{ -\frac{1}{2} (x-\mu)^{T} \Sigma_{1:k}^{-1} (x-\mu) \biggr\}
-$$
+```
 
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$, $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
 
@@ -290,7 +290,7 @@ For the tensor variate normal inverse Gaussian distribution, we let $W \sim \ope
 
 The density function of the normal inverse Gaussian distribution is
 
-$$
+```math
 \begin{aligned}
 f_{\text{TVNIG}}(\mathcal{X}|\mathbf{V})
 &= \frac{2 \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
@@ -303,7 +303,7 @@ f_{\text{TVNIG}}(\mathcal{X}|\mathbf{V})
 K_{-\frac{1 + n^{*}}{2}} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \kappa^{2}\Bigr]
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + 1\Bigr]} \biggr).
 \end{aligned}
-$$
+```
 
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$, $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
 
@@ -355,7 +355,7 @@ For the tensor variate generalized hyperbolic distribution, we let $W \sim I(\om
 
 The density function of the generalized hyperbolic distribution is
 
-$$
+```math
 \begin{aligned}
 f_{\text{TVGH}}(\mathcal{X}|\mathbf{V})
 &= \frac{\exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
@@ -368,7 +368,8 @@ f_{\text{TVGH}}(\mathcal{X}|\mathbf{V})
 K_{\lambda - n^{*}/2} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \omega\Bigr]
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \omega\Bigr]}\biggr).
 \end{aligned}
-$$
+```
+
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$, $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
 
 The function `rtgenhyper()`{.R} simulates random draws from the tensor variate generalized hyperbolic with a specified mean array mu and a list of covariance matrices called list_sigmas.
@@ -421,7 +422,7 @@ For the tensor variate variance gamma distribution, we let $W \sim \text{Gamma}(
 
 The density function of the variance gamma distribution is
 
-$$
+```math
 \begin{aligned}
 f_{\text{TVVG}}(\mathcal{X}|\mathbf{V})
 &= \frac{2\gamma^{\gamma} \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
@@ -434,7 +435,7 @@ f_{\text{TVVG}}(\mathcal{X}|\mathbf{V})
 K_{\gamma - n^{*}/2} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + 2\gamma\Bigr]
 \delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1})} \biggr).
 \end{aligned}
-$$
+```
 
 ```{r}
 vargamma_draws <- rtvargamma(n = 1e3, mu = mu_true, skew = skew_true,
@@ -466,7 +467,7 @@ For the tensor variate skewed t distribution, we let $W \sim \operatorname{Inv\t
 
 The density function of the skewed t distribution is
 
-$$
+```math
 \begin{aligned}
 f_{\text{TVST}}(\mathcal{X}|\mathbf{V})
 &= \frac{2\bigl(\frac{\nu}{2}\bigr)^{\nu/2} \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
@@ -479,7 +480,7 @@ f_{\text{TVST}}(\mathcal{X}|\mathbf{V})
 K_{-\frac{\nu + n^{*}}{2}} \biggl(\sqrt{\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1})
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \nu\Bigr]} \biggr).
 \end{aligned}
-$$
+```
 
 ```{r}
 nu_true <- 20

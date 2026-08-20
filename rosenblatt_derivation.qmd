@@ -51,9 +51,9 @@ $$
 U_1,\ldots,U_p \stackrel{\mathrm{ind}}{\sim} \operatorname{Uniform}(0,1).
 $$
 
-The important point is that each random variable is transformed using its distribution conditional on all the random variables that came before it.
+Each random variable is transformed using its distribution conditional on all the random variables that came before it.
 
-## Two-dimensional multivariate normal example
+## Bivariate normal example
 
 Suppose
 

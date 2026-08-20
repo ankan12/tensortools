@@ -58,11 +58,15 @@ $\mathcal{A} \in \mathbb{k}^{I_1 \times I_2 \times \dots \times I_{n} \times \do
 with a matrix $\textbf{U} \in \mathbb{k}^{J \times I_n}$  
 is
 
-$$(\mathcal{A} \times_n \textbf{U}) \in \mathbb{k}^{I_1 \times \dots \times I_{n-1} \times J \times I_{n+1} \times \dots \times I_{O}}$$
+```math
+(\mathcal{A} \times_n \textbf{U}) \in \mathbb{k}^{I_1 \times \dots \times I_{n-1} \times J \times I_{n+1} \times \dots \times I_{O}}
+```
 
 with entries
 
-$$(\mathcal{A} \times_n \textbf{U})_{i_1, \dots, i_{n-1}, j, i_{n+1}, \dots i_{O}} = \sum_{i_n = 1}^{I_{N}} a_{i_{1}, i_{2}, \dots, i_{O}} u_{j, i_n}.$$
+```math
+(\mathcal{A} \times_n \textbf{U})_{i_1, \dots, i_{n-1}, j, i_{n+1}, \dots i_{O}} = \sum_{i_n = 1}^{I_{N}} a_{i_{1}, i_{2}, \dots, i_{O}} u_{j, i_n}.
+```
 
 The tensor and matrix share one mode in common, denoted here as $I_{n}$.
 This operation is also called the tensor times matrix product.
@@ -91,11 +95,15 @@ with a $P$-th order tensor
 $\textbf{U} \in \mathbb{k}^{J_{1} \times {J_2} \times \dots \times J_{m} = I_{n} \dots \times J_{P}}$
 is
 
-$$(\mathcal{A} \sideset{_{n}}{_{m}}{\mathop{\boldsymbol{\times}}} \mathcal{U}) \in \mathbb{k}^{I_1 \times \dots \times I_{n-1} \times I_{n+1} \times \dots \times I_{O} \times J_{1} \times \dots \times J_{m-1} \times J_{m+1} \times \dots \times J_{P}}$$
+```math
+(\mathcal{A} \sideset{_{n}}{_{m}}{\mathop{\boldsymbol{\times}}} \mathcal{U}) \in \mathbb{k}^{I_1 \times \dots \times I_{n-1} \times I_{n+1} \times \dots \times I_{O} \times J_{1} \times \dots \times J_{m-1} \times J_{m+1} \times \dots \times J_{P}}
+```
 
 with entries
 
-$$(\mathcal{A} \sideset{_{n}}{_{m}}{\mathop{\boldsymbol{\times}}} \mathcal{U})_{i_1, \dots, i_{n-1}, k, i_{n+1}, \dots I_{O}, j_{1}, \dots, j_{m-1}, j_{m+1}, \dots j_{P}} = \sum_{i_n = 1}^{I_n} a_{i_1, i_2, \dots, i_{n}, \dots i_N} u_{j_{1}, j_{2}, \dots i_n, \dots j_{P}}.$$
+```math
+(\mathcal{A} \sideset{_{n}}{_{m}}{\mathop{\boldsymbol{\times}}} \mathcal{U})_{i_1, \dots, i_{n-1}, k, i_{n+1}, \dots I_{O}, j_{1}, \dots, j_{m-1}, j_{m+1}, \dots j_{P}} = \sum_{i_n = 1}^{I_n} a_{i_1, i_2, \dots, i_{n}, \dots i_N} u_{j_{1}, j_{2}, \dots i_n, \dots j_{P}}.
+```
 
 The $n$-th mode of the first tensor matches the $m$-th mode of the
 second tensor, denoted here as $I_{n} = J_{m}$. This operation is also
@@ -120,10 +128,14 @@ and
 $\mathcal{U} \in \mathbb{k}^{J_{1} \times J_{2} \times \dots \times J_{P}}$
 
 Then the tensor product is
-$$(\mathcal{A} \otimes \mathcal{B}) \in \mathbb{k}^{I_{1} \times I_{2} \dots \times I_{O} \times J_{1} \times \dots \times J_{P}}$$
+```math
+(\mathcal{A} \otimes \mathcal{B}) \in \mathbb{k}^{I_{1} \times I_{2} \dots \times I_{O} \times J_{1} \times \dots \times J_{P}}
+```
 with entries
 
-$$(\mathcal{A} \otimes \mathcal{U})_{i_1, \dots, i_{O}, j_{1}, \dots, j_{P}} = a_{i_1, i_2, \dots, i_{o}} u_{j_{1}, j_{2}, \dots \dots j_{p}}.$$
+```math
+(\mathcal{A} \otimes \mathcal{U})_{i_1, \dots, i_{O}, j_{1}, \dots, j_{P}} = a_{i_1, i_2, \dots, i_{o}} u_{j_{1}, j_{2}, \dots \dots j_{p}}.
+```
 
 ``` r
 A <- matrix(c(1, 2, 3, 4), nrow = 2)
@@ -148,10 +160,12 @@ tensor_prod(A, x)
 The density function of the multilinear normal distribution
 is<sup>1</sup>
 
-$$f(x) =
+```math
+f(x) =
 (2\pi)^{-p^{*}/2}
 \biggl(\prod_{i=1}^{k} |\Sigma_i|^{-p^{*}/(2p_i)}\biggr)
-\exp\biggl\{ -\frac{1}{2} (x-\mu)^{T} \Sigma_{1:k}^{-1} (x-\mu) \biggr\}$$
+\exp\biggl\{ -\frac{1}{2} (x-\mu)^{T} \Sigma_{1:k}^{-1} (x-\mu) \biggr\}
+```
 
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$,
 $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
@@ -372,7 +386,8 @@ $W \sim \operatorname{IG}(1, \kappa)$.
 
 The density function of the normal inverse Gaussian distribution is
 
-$$\begin{aligned}
+```math
+\begin{aligned}
 f_{\text{TVNIG}}(\mathcal{X}|\mathbf{V})
 &= \frac{2 \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
 \bigotimes_{d=1}^{D} \Sigma_{d}^{-1} \text{vec}(\mathcal{A}) + \kappa \biggr\}}
@@ -383,7 +398,8 @@ f_{\text{TVNIG}}(\mathcal{X}|\mathbf{V})
 &\quad \times
 K_{-\frac{1 + n^{*}}{2}} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \kappa^{2}\Bigr]
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + 1\Bigr]} \biggr).
-\end{aligned}$$
+\end{aligned}
+```
 
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$,
 $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
@@ -441,7 +457,8 @@ $W \sim I(\omega, 1, \lambda)$.
 
 The density function of the generalized hyperbolic distribution is
 
-$$\begin{aligned}
+```math
+\begin{aligned}
 f_{\text{TVGH}}(\mathcal{X}|\mathbf{V})
 &= \frac{\exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
 \bigotimes_{d=1}^{D} \Sigma_{d}^{-1} \text{vec}(\mathcal{A})\biggr\}}
@@ -452,7 +469,8 @@ f_{\text{TVGH}}(\mathcal{X}|\mathbf{V})
 &\quad \times
 K_{\lambda - n^{*}/2} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \omega\Bigr]
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \omega\Bigr]}\biggr).
-\end{aligned}$$
+\end{aligned}
+```
 where $\Sigma$ is positive definite, $x \in \mathbb{R}^p$,
 $\mu \in \mathbb{R}^p$ and $\Sigma_{1:k} \in \mathbb{R}^p.$
 
@@ -520,7 +538,8 @@ $W \sim \text{Gamma}(\gamma, \gamma)$.
 
 The density function of the variance gamma distribution is
 
-$$\begin{aligned}
+```math
+\begin{aligned}
 f_{\text{TVVG}}(\mathcal{X}|\mathbf{V})
 &= \frac{2\gamma^{\gamma} \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
 \bigotimes_{d=1}^{D} \Sigma_{d}^{-1} \text{vec}(\mathcal{A})\biggr\}}
@@ -531,7 +550,8 @@ f_{\text{TVVG}}(\mathcal{X}|\mathbf{V})
 &\quad \times
 K_{\gamma - n^{*}/2} \biggl(\sqrt{\Bigl[\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + 2\gamma\Bigr]
 \delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1})} \biggr).
-\end{aligned}$$
+\end{aligned}
+```
 
 ``` r
 vargamma_draws <- rtvargamma(n = 1e3, mu = mu_true, skew = skew_true,
@@ -571,7 +591,8 @@ $W \sim \operatorname{Inv\text{-}Gamma}(\nu/2, \nu/2)$.
 
 The density function of the skewed t distribution is
 
-$$\begin{aligned}
+```math
+\begin{aligned}
 f_{\text{TVST}}(\mathcal{X}|\mathbf{V})
 &= \frac{2\bigl(\frac{\nu}{2}\bigr)^{\nu/2} \exp\biggl\{\text{vec}(\mathcal{X} - \mathcal{M})^{T}
 \bigotimes_{d=1}^{D} \Sigma_{d}^{-1} \text{vec}(\mathcal{A})\biggr\}}
@@ -582,7 +603,8 @@ f_{\text{TVST}}(\mathcal{X}|\mathbf{V})
 &\quad \times
 K_{-\frac{\nu + n^{*}}{2}} \biggl(\sqrt{\rho(\mathcal{A}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1})
 \Bigl[\delta(\mathcal{X}; \mathcal{M}, \bigotimes_{d=1}^{D} \Sigma_{d}^{-1}) + \nu\Bigr]} \biggr).
-\end{aligned}$$
+\end{aligned}
+```
 
 ``` r
 nu_true <- 20
@@ -688,12 +710,16 @@ restricted model fixes $\Sigma_r = I_{n_r}$ for every
 $r \in \mathcal{R}$, while all other covariance matrices are estimated.
 The likelihood ratio test compares
 
-$$H_0: \Sigma_r = I_{n_r} \ \forall r \in \mathcal{R} \quad \text{vs.} \quad H_A: \Sigma_r \neq I_{n_r} \ \text{for at least one } r \in \mathcal{R}.$$
+```math
+H_0: \Sigma_r = I_{n_r} \ \forall r \in \mathcal{R} \quad \text{vs.} \quad H_A: \Sigma_r \neq I_{n_r} \ \text{for at least one } r \in \mathcal{R}.
+```
 
 The test statistic is
 
-$$2\{\ell(\hat\theta_{\mathrm{full}}) - \ell(\hat\theta_{\mathcal{R}})\}
-\sim \chi^2_{\nu_{\mathcal{R}}}, \quad \nu_{\mathcal{R}} = \sum_{r \in \mathcal{R}} \biggl\{\frac{n_r(n_r+1)}{2} - 1\biggr\}$$
+```math
+2\{\ell(\hat\theta_{\mathrm{full}}) - \ell(\hat\theta_{\mathcal{R}})\}
+\sim \chi^2_{\nu_{\mathcal{R}}}, \quad \nu_{\mathcal{R}} = \sum_{r \in \mathcal{R}} \biggl\{\frac{n_r(n_r+1)}{2} - 1\biggr\}
+```
 
 If the $p$-value is large, then we fail to reject the null hypothesis
 and conclude the restricted model fits the data as well as the
@@ -851,12 +877,16 @@ estimate $\Sigma_1$.
 
 If we compute the usual row covariance
 
-$$S_{\text{row}} = \frac{1}{n-1} X^T \biggl(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\biggr) X,$$
+```math
+S_{\text{row}} = \frac{1}{n-1} X^T \biggl(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\biggr) X,
+```
 
 then under the matrix normal model,
 
-$$\mathbb{E}(S_{\text{row}})
-= \frac{\operatorname{tr}\left[\left(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\right)\Sigma_1\right]}{n-1}\Sigma_2.$$
+```math
+\mathbb{E}(S_{\text{row}})
+= \frac{\operatorname{tr}\left[\left(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\right)\Sigma_1\right]}{n-1}\Sigma_2.
+```
 
 So the usual sample covariance does recover the of $\Sigma_2$, but only
 up to a multiplicative constant determined by $\Sigma_1$. The same
