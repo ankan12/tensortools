@@ -382,7 +382,7 @@ $\mathcal{X} = \mathcal{M} + \textbf{W} \mathcal{A} + \sqrt{\textbf{W}} \mathcal
 ## Tensor variate normal inverse Gaussian
 
 For the tensor variate normal inverse Gaussian distribution, we let
-$W \sim \operatorname{IG}(1, \kappa)$.
+$W \sim \mathrm{IG}(1, \kappa)$.
 
 The density function of the normal inverse Gaussian distribution is
 
@@ -587,7 +587,7 @@ vargamma_est$gamma
 ## Tensor variate skewed t
 
 For the tensor variate skewed t distribution, we let
-$W \sim \operatorname{Inv\text{-}Gamma}(\nu/2, \nu/2)$.
+$W \sim \mathrm{Inv\text{-}Gamma}(\nu/2, \nu/2)$.
 
 The density function of the skewed t distribution is
 
@@ -885,7 +885,7 @@ then under the matrix normal model,
 
 ```math
 \mathbb{E}(S_{\text{row}})
-= \frac{\operatorname{tr}\left[\left(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\right)\Sigma_1\right]}{n-1}\Sigma_2.
+= \frac{\mathrm{tr}\left[\left(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\right)\Sigma_1\right]}{n-1}\Sigma_2.
 ```
 
 So the usual sample covariance does recover the of $\Sigma_2$, but only
