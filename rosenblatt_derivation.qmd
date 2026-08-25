@@ -392,8 +392,8 @@ A diagnostic can therefore examine:
 
 When $\mathcal M$ and the covariance matrices are replaced by estimates from
 the same data, the transformed values are not exactly independent uniforms in
-finite samples. For a formal goodness-of-fit test, the null distribution of
-the diagnostic statistic should therefore be obtained using a parametric
+finite samples. A formal goodness-of-fit test therefore needs fitted-parameter
+calibration, such as a score-adjusted multiplier calibration or a parametric
 bootstrap that repeats both model fitting and transformation.
 
 ## 9. Summary of the calculation
@@ -410,3 +410,384 @@ For one tensor observation:
    $u_j=\Phi(z_j)$.
 6. Under the correct model with known parameters, the resulting values are
    independent $\operatorname{Uniform}(0,1)$ variables.
+
+
+# Rosenblatt transformation for skewed tensor-variate distributions
+
+## 10. Normal variance--mean mixture representation
+
+The tensor skew-$t$, variance-gamma, inverse-Gaussian, and generalized
+hyperbolic distributions implemented in `tensortools` share the representation
+
+$$
+\mathcal X
+=
+\mathcal M+W\mathcal A+\sqrt{W}\,\mathcal Z,
+$$
+
+where $\mathcal A$ is the skew tensor, $W$ is a positive scalar mixing
+variable, and
+
+$$
+\mathcal Z\sim
+\operatorname{TVN}(\mathbf 0,\Sigma_1,\ldots,\Sigma_D)
+$$
+
+is independent of $W$. Conditional on $W=w$,
+
+$$
+\operatorname{vec}(\mathcal X)\mid W=w
+\sim
+N_p\left(
+\operatorname{vec}(\mathcal M)+w\operatorname{vec}(\mathcal A),
+w(\Sigma_D\otimes\cdots\otimes\Sigma_1)
+\right).
+$$
+
+Thus the distribution is normal when $W$ is known, but it is skewed and
+heavy-tailed after $W$ is integrated out. The same $W$ is shared by every
+entry of one tensor observation, which also creates dependence among entries.
+
+## 11. Whiten the location and skew tensors
+
+Let $\Sigma_d=L_dL_d^\top$ and apply the same modewise whitening used for the
+tensor-normal model:
+
+$$
+\mathcal Y
+=
+(\mathcal X-\mathcal M)
+\times_1L_1^{-1}\cdots\times_DL_D^{-1},
+$$
+
+and whiten the skew tensor in the same way:
+
+$$
+\mathcal B
+=
+\mathcal A
+\times_1L_1^{-1}\cdots\times_DL_D^{-1}.
+$$
+
+After vectorizing in R's column-major order, write
+
+$$
+y=\operatorname{vec}(\mathcal Y),
+\qquad
+b=\operatorname{vec}(\mathcal B).
+$$
+
+The whitened coordinates satisfy
+
+$$
+Y_j\mid W=w\sim N(wb_j,w),
+$$
+
+and they are conditionally independent given $W$. They are not marginally
+independent because they share the same unobserved mixing variable.
+
+Consequently, applying $\Phi(Y_j)$ is not a valid Rosenblatt transformation.
+Instead, each coordinate must use its distribution conditional on all
+previous coordinates, with uncertainty about $W$ integrated out.
+
+## 12. Initial GIG mixing distributions
+
+All four mixing distributions can be represented as generalized inverse
+Gaussian distributions or their boundary cases. Using
+
+$$
+W\sim\operatorname{GIG}(\lambda,\chi,\psi),
+$$
+
+with density kernel
+
+$$
+f(w)\propto
+w^{\lambda-1}
+\exp\left\{-\frac12\left(\frac{\chi}{w}+\psi w\right)\right\},
+\qquad w>0,
+$$
+
+the starting parameters used by `tensor_rosenblatt()` are:
+
+| Tensor distribution | Initial $\lambda_0$ | Initial $\chi_0$ | Initial $\psi_0$ |
+|:--|--:|--:|--:|
+| Skew-$t$ | $-\nu/2$ | $\nu$ | $0$ |
+| Variance-gamma | $\gamma$ | $0$ | $2\gamma$ |
+| Inverse-Gaussian | $-1/2$ | $1$ | $\kappa^2$ |
+| Generalized hyperbolic | $\lambda$ | $\omega$ | $\omega$ |
+
+The skew-$t$ boundary is an inverse-gamma distribution, while the
+variance-gamma boundary is a gamma distribution.
+
+## 13. Sequential posterior update for the mixing variable
+
+Suppose the conditional distribution of $W$ after observing the first $j-1$
+whitened coordinates is
+
+$$
+W\mid Y_1=y_1,\ldots,Y_{j-1}=y_{j-1}
+\sim
+\operatorname{GIG}(\lambda_{j-1},\chi_{j-1},\psi_{j-1}).
+$$
+
+The likelihood contribution from coordinate $j$ is
+
+$$
+f(y_j\mid w)
+\propto
+w^{-1/2}
+\exp\left\{-\frac{(y_j-wb_j)^2}{2w}\right\}.
+$$
+
+Combining this likelihood with the GIG density gives another GIG distribution.
+After observing $y_j$, its parameters update as
+
+$$
+\boxed{
+\lambda_j=\lambda_{j-1}-\frac12,
+\qquad
+\chi_j=\chi_{j-1}+y_j^2,
+\qquad
+\psi_j=\psi_{j-1}+b_j^2.
+}
+$$
+
+Equivalently, after the first $j-1$ coordinates,
+
+$$
+\lambda_{j-1}=\lambda_0-\frac{j-1}{2},
+\quad
+\chi_{j-1}=\chi_0+\sum_{k<j}y_k^2,
+\quad
+\psi_{j-1}=\psi_0+\sum_{k<j}b_k^2.
+$$
+
+## 14. The skewed Rosenblatt coordinate
+
+Before updating with $y_j$, calculate its conditional CDF by averaging the
+conditional normal CDF over the current posterior distribution of $W$:
+
+$$
+\boxed{
+U_j
+=
+\int_0^\infty
+\Phi\left(\frac{y_j-wb_j}{\sqrt w}\right)
+f_{\operatorname{GIG}}
+\left(w;\lambda_{j-1},\chi_{j-1},\psi_{j-1}\right)
+\,dw.
+}
+$$
+
+The calculation for one tensor observation is therefore:
+
+1. Subtract $\mathcal M$ and whiten the observation to obtain $y$.
+2. Whiten $\mathcal A$ to obtain $b$.
+3. Initialize $(\lambda_0,\chi_0,\psi_0)$ for the selected distribution.
+4. For $j=1,\ldots,p$, integrate the conditional normal CDF over the current
+   GIG distribution to obtain $U_j$.
+5. Update the three GIG parameters using $y_j$ and $b_j$.
+6. Continue in the same column-major coordinate order for every observation.
+
+Under the correct model with known parameters, the resulting coordinates are
+independent $\operatorname{Uniform}(0,1)$ variables. The package evaluates the
+one-dimensional integral numerically on the log-$W$ scale; it never constructs
+a high-dimensional skewed tensor CDF.
+
+## 15. Package implementation
+
+For a skew-$t$ model with known parameters, the transformation is obtained by
+
+```r
+U <- tensor_rosenblatt(
+  draws,
+  model = "skewt",
+  parameters = list(
+    mu = mu,
+    sigmas = sigmas,
+    skew = skew,
+    nu = nu
+  )
+)
+```
+
+For fitted parameters, the MLE can be passed directly:
+
+```r
+fit <- tensor_mle(draws, model = "skewt")
+
+U_fitted <- tensor_rosenblatt(
+  draws,
+  model = "skewt",
+  parameters = fit
+)
+```
+
+These fitted Rosenblatt values are useful for histograms, Q--Q plots, and
+dependence diagnostics. Because the same data estimated the parameters, a
+formal goodness-of-fit p-value additionally requires fitted-parameter
+calibration, as provided by `tensor_gof_scores()` or by a refitted parametric
+bootstrap.
+
+
+```{r}
+#| eval: false
+#| include: false
+
+library(tensortools)
+set.seed(2)
+
+dims <- c(2L, 2L)
+mu <- array(0, dim = dims)
+sigmas <- list(diag(2), diag(2))
+skew <- array(c(0.4, -0.2, 0.3, 0), dim = dims)
+nu <- 7
+
+draws <- rtskewt(
+  n = 100,
+  mu = mu,
+  sigmas = sigmas,
+  skew = skew,
+  nu = nu
+)
+
+fit <- tensor_mle(draws, model = "skewt")
+
+U <- tensor_rosenblatt(
+  draws,
+  model = "skewt",
+  parameters = fit
+)
+
+hist(unclass(U))
+
+result <- tensor_gof_scores(
+  draws,
+  model = "skewt",
+  fit = fit,
+  calibration = "multiplier",
+  B = 1999,
+  seed = 2026
+)
+
+```
+
+## Empirical type-I error under a true skew-$t$ model
+
+This simulation generates observations from one tensor skew-$t$ distribution
+and fits that same model in every iteration. The null hypothesis is therefore
+true. The rejection proportion estimates the test's type-I error rate and
+should be close to the selected significance level in a sufficiently large
+simulation.
+
+The current setting uses 100 iterations. At $\alpha=0.05$, approximately five
+rejections are expected on average when the test is correctly calibrated,
+although the realized count varies. A reliable type-I error study should use
+more Monte Carlo iterations, for example at least 500.
+
+```{r skewt-gof-type-one-error}
+#| eval: false
+#| include: false
+
+type_one_iterations <- 100L
+type_one_sample_size <- 100L
+type_one_alpha <- 0.05
+type_one_B <- 1999L
+
+type_one_dims <- c(2L, 2L)
+type_one_mu <- array(0, dim = type_one_dims)
+type_one_sigmas <- list(
+  matrix(c(1, 0.3, 0.3, 1), nrow = 2),
+  toeplitz(c(1, 0.25))
+)
+type_one_skew <- array(
+  c(0.4, -0.2, 0.3, 0),
+  dim = type_one_dims
+)
+type_one_nu <- 7
+
+type_one_results <- vector("list", type_one_iterations)
+
+for (iteration in seq_len(type_one_iterations)) {
+  # Giving each iteration its own seed makes individual failures reproducible.
+  set.seed(12000 + iteration)
+
+  null_draws <- rtskewt(
+    n = type_one_sample_size,
+    mu = type_one_mu,
+    sigmas = type_one_sigmas,
+    skew = type_one_skew,
+    nu = type_one_nu
+  )
+
+  type_one_results[[iteration]] <- tryCatch(
+    {
+      null_fit <- tensor_mle(
+        null_draws,
+        model = "skewt",
+        quiet = TRUE
+      )
+
+      null_test <- tensor_gof_scores(
+        draws = null_draws,
+        model = "skewt",
+        fit = null_fit,
+        marginal_degree = 3L,
+        include_interactions = TRUE,
+        max_basis = 20L,
+        calibration = "multiplier",
+        B = type_one_B,
+        seed = 22000 + iteration
+      )
+
+      data.frame(
+        iteration = iteration,
+        p_value = null_test$p.value,
+        reject = null_test$p.value < type_one_alpha,
+        error = NA_character_
+      )
+    },
+    error = function(error) {
+      data.frame(
+        iteration = iteration,
+        p_value = NA_real_,
+        reject = NA,
+        error = conditionMessage(error)
+      )
+    }
+  )
+}
+
+type_one_results <- do.call(rbind, type_one_results)
+successful_iterations <- !is.na(type_one_results$p_value)
+if (!any(successful_iterations)) {
+  stop("All type-I error simulation iterations failed.")
+}
+estimated_type_one_error <- mean(
+  type_one_results$reject[successful_iterations]
+)
+number_rejected <- sum(
+  type_one_results$reject[successful_iterations]
+)
+type_one_interval <- binom.test(
+  number_rejected,
+  sum(successful_iterations)
+)$conf.int
+type_one_mcse_under_nominal <- sqrt(
+  type_one_alpha * (1 - type_one_alpha) /
+    sum(successful_iterations)
+)
+
+type_one_results
+data.frame(
+  successful_iterations = sum(successful_iterations),
+  failed_iterations = sum(!successful_iterations),
+  number_rejected = number_rejected,
+  nominal_alpha = type_one_alpha,
+  estimated_type_one_error = estimated_type_one_error,
+  exact_95_percent_lower = type_one_interval[1L],
+  exact_95_percent_upper = type_one_interval[2L],
+  mcse_under_nominal_alpha = type_one_mcse_under_nominal
+)
+```

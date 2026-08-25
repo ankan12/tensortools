@@ -6,7 +6,7 @@
 #'
 #' @noRd
 tensor_mle_genhyper <- function(data, max_iter = 1000, tol = 1e-6,
-                                quiet = TRUE, restrict = NULL) {
+                                quiet = TRUE, restrict = NULL, init = NULL) {
 
   # get dim of input
   n <- n_draws(data)
@@ -17,20 +17,21 @@ tensor_mle_genhyper <- function(data, max_iter = 1000, tol = 1e-6,
   # Step 1: Initialize vals
 
   # different params based on model
-  lambda <- 10
-  omega <- 10
+  lambda <- .tensor_mle_initial_value(init, "lambda", 10)
+  omega <- .tensor_mle_initial_value(init, "omega", 10)
 
   flat_draws <- aperm(unclass(data), c(seq.int(2L, o + 1L), 1L))
 
   mean_draws <- apply(flat_draws, 1:o, mean)
   median_draws <- apply(flat_draws, 1:o, median)
-  mu <- median_draws
+  mu <- .tensor_mle_initial_value(init, "mu", median_draws)
 
   # E[X] = M + K_{lambda+1}(omega)/K_{lambda}(omega) * skew
 
   R_lambda <- .besselK_asym_ratio(omega, lambda + 1, lambda)
 
-  skew <- 1/R_lambda * (mean_draws - median_draws)
+  skew <- if (!is.null(init) && !is.null(init$skew)) init$skew else
+    1/R_lambda * (mean_draws - median_draws)
 
   # res_normal <- tensor_mle_normal(
   #   data,
@@ -61,21 +62,17 @@ tensor_mle_genhyper <- function(data, max_iter = 1000, tol = 1e-6,
   #skew <- -apply(precision_resids, 1:o, median)
 
   logliks <- rep(0, max_iter)
-  sigmas <- lapply(dims, diag)
-
-  for(k in 1:o) {
-    tot_sum <- 0
-    for(i in 1:n) {
-      curr_unfold <- matricization(.tensor_single_draw_array(pull_draw(data, i)) - mu, k)
-
-      tot_sum <- tot_sum + tcrossprod(curr_unfold)
-    }
-
-    tot_sum <- tot_sum * dims[k]/(n * n_star)
-
-    tot_sum <- tot_sum/(sum(diag(tot_sum))) * dims[k]
-
-    sigmas[[k]] <- tot_sum
+  if (!is.null(init) && !is.null(init$sigmas)) {
+    sigmas <- init$sigmas
+  } else {
+    normal_start <- tensor_mle_normal(
+      data,
+      max_iter = max_iter,
+      tol = tol,
+      quiet = TRUE,
+      restrict = NULL
+    )
+    sigmas <- normal_start$sigmas
   }
 
   for (t in 1:max_iter) {

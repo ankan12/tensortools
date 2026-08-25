@@ -5,6 +5,10 @@
 #' @param data An array containing the draws, where the first mode represents each draw.
 #' @param max_iter A max number of iterations to try to get covariance matrices that converge.
 #' @param tol A tolerance level to define the convergence of matrices.
+#' @param quiet Whether to suppress convergence messages.
+#' @param restrict Optional covariance scale restrictions.
+#' @param init Optional named list containing a starting value for `sigmas`.
+#'   The normal mean is estimated directly as the sample mean.
 #'
 #' @return A list containing the estimated mean array and the list of covariance matrices.
 #'
@@ -19,7 +23,7 @@
 #' (mse_each <- mapply(function(est, true) mean((est - true)^2), est_fourth$sigmas, fourth_scaled))
 #' @export
 tensor_mle_normal <- function(data, max_iter = 1000, tol = 1e-6,
-                              quiet = TRUE, restrict = NULL) {
+                              quiet = TRUE, restrict = NULL, init = NULL) {
   #get dim of input
   n <- n_draws(data)
   dims <- draw_shape(data)
@@ -69,23 +73,30 @@ tensor_mle_normal <- function(data, max_iter = 1000, tol = 1e-6,
 
   mu <- apply(unclass(data), 2:(o+1), mean)
 
-  sigmas <- lapply(dims, diag)
-
   logliks <- rep(0, max_iter)
 
-  for(k in 1:o) {
-    tot_sum <- 0
-    for(i in 1:n) {
-      curr_unfold <- matricization(.tensor_single_draw_array(pull_draw(data, i)) - mu, k)
+  if (!is.null(init) && !is.null(init$sigmas)) {
+    sigmas <- init$sigmas
+  } else {
+    sigmas <- lapply(dims, diag)
 
-      tot_sum <- tot_sum + tcrossprod(curr_unfold)
+    for(k in 1:o) {
+      tot_sum <- 0
+      for(i in 1:n) {
+        curr_unfold <- matricization(
+          .tensor_single_draw_array(pull_draw(data, i)) - mu,
+          k
+        )
+
+        tot_sum <- tot_sum + tcrossprod(curr_unfold)
+      }
+
+      tot_sum <- tot_sum * dims[k]/(n * n_star)
+
+      tot_sum <- tot_sum/(sum(diag(tot_sum))) * dims[k]
+
+      sigmas[[k]] <- tot_sum
     }
-
-    tot_sum <- tot_sum * dims[k]/(n * n_star)
-
-    tot_sum <- tot_sum/(sum(diag(tot_sum))) * dims[k]
-
-    sigmas[[k]] <- tot_sum
   }
 
   for (t in 1:max_iter) {

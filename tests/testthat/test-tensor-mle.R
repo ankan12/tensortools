@@ -144,3 +144,80 @@ test_that("tensor_mle models handle scalar draws consistently", {
     }
   }
 })
+
+test_that("tensor_mle accepts fitted objects as warm starts", {
+  set.seed(20260823)
+
+  dims <- c(2, 2)
+  mu <- array(c(-0.25, 0, 0.25, 0.5), dim = dims)
+  skew <- array(c(0.1, -0.05, 0.05, 0.1), dim = dims)
+  sigmas <- list(diag(2), diag(2))
+  draws <- list(
+    normal = rtnorm(30, mu = mu, sigmas = sigmas),
+    skewt = rtskewt(
+      30, mu = mu, sigmas = sigmas, skew = skew, nu = 8
+    ),
+    vargamma = rtvargamma(
+      30, mu = mu, sigmas = sigmas, skew = skew, scale = 4
+    ),
+    invgauss = rtinvgauss(
+      30, mu = mu, sigmas = sigmas, skew = skew, kappa = 2
+    ),
+    genhyper = rtgenhyper(
+      30, mu = mu, sigmas = sigmas, skew = skew,
+      lambda = 1, omega = 4
+    )
+  )
+
+  for (model in names(draws)) {
+    fit <- suppressMessages(
+      tensor_mle(draws[[model]], model = model, max_iter = 2)
+    )
+
+    warm_fit <- expect_no_error(
+      suppressMessages(
+        tensor_mle(
+          draws[[model]], model = model, max_iter = 1, init = fit
+        )
+      )
+    )
+
+    expect_equal(dim(warm_fit$mu), dims, info = model)
+    expect_true(is.finite(warm_fit$loglik), info = model)
+  }
+})
+
+test_that("tensor_mle validates warm-start parameters", {
+  draws <- rtnorm(
+    10,
+    mu = array(0, dim = c(2, 2)),
+    sigmas = list(diag(2), diag(2))
+  )
+
+  expect_error(
+    tensor_mle(draws, model = "normal", init = 1),
+    "named list",
+    fixed = TRUE
+  )
+  expect_error(
+    tensor_mle(draws, model = "normal", init = list(loglik = 0)),
+    "does not contain any parameters",
+    fixed = TRUE
+  )
+  expect_error(
+    tensor_mle(
+      draws, model = "normal",
+      init = list(sigmas = list(diag(2), matrix(c(1, 2, 2, 1), 2)))
+    ),
+    "positive-definite",
+    fixed = TRUE
+  )
+  expect_error(
+    tensor_mle(
+      draws, model = "skewt",
+      init = list(nu = -1)
+    ),
+    "positive finite",
+    fixed = TRUE
+  )
+})

@@ -6,7 +6,7 @@
 #'
 #' @noRd
 tensor_mle_vargamma <- function(data, max_iter = 1000, tol = 1e-6,
-                                quiet = TRUE, restrict = NULL) {
+                                quiet = TRUE, restrict = NULL, init = NULL) {
 
   # get dim of input
   n <- n_draws(data)
@@ -17,23 +17,34 @@ tensor_mle_vargamma <- function(data, max_iter = 1000, tol = 1e-6,
   # Step 1: Initialize vals
 
   # different params based on model
-  gamma <- 6
+  gamma <- .tensor_mle_initial_value(init, "gamma", 6)
 
-  res_normal <- tensor_mle_normal(
-    data,
-    max_iter = max_iter,
-    tol = tol,
-    quiet = TRUE,
-    restrict = NULL
+  has_initial_skew <- !is.null(init) && !is.null(init$skew)
+
+  mu <- .tensor_mle_initial_value(
+    init,
+    "mu",
+    apply(unclass(data), 2:(o + 1), mean)
   )
 
-  mu <- res_normal$mu
-  sigmas <- res_normal$sigmas
+  if (!is.null(init) && !is.null(init$sigmas)) {
+    sigmas <- init$sigmas
+  } else {
+    normal_start <- tensor_mle_normal(
+      data,
+      max_iter = max_iter,
+      tol = tol,
+      quiet = TRUE,
+      restrict = NULL
+    )
+    sigmas <- normal_start$sigmas
+  }
 
   inv_sigma_start <- lapply(sigmas, invert_safe)
 
-  precision_resids_mat <- matrix(0, nrow = n_star, ncol = n)
-  for (i in seq_len(n)) {
+  precision_resids_mat <- if (has_initial_skew) NULL else
+    matrix(0, nrow = n_star, ncol = n)
+  if (!has_initial_skew) for (i in seq_len(n)) {
     centered <- .tensor_single_draw_array(pull_draw(data, i)) - mu
 
     for (d in seq_along(inv_sigma_start)) {
@@ -42,10 +53,12 @@ tensor_mle_vargamma <- function(data, max_iter = 1000, tol = 1e-6,
 
     precision_resids_mat[, i] <- as.numeric(centered)
   }
-  precision_resids <- array(precision_resids_mat, dim = c(dims, n))
+  precision_resids <- if (has_initial_skew) NULL else
+    array(precision_resids_mat, dim = c(dims, n))
 
   # Use the median shift of precision-weighted residuals to seed skewness.
-  skew <- -apply(precision_resids, 1:o, median)
+  skew <- if (has_initial_skew) init$skew else
+    -apply(precision_resids, 1:o, median)
 
   logliks <- rep(0, max_iter)
 

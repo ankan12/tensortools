@@ -10,7 +10,8 @@ tensor_mle(
   tol = 1e-04,
   quiet = TRUE,
   model,
-  restrict = NULL
+  restrict = NULL,
+  init = NULL
 )
 }
 \arguments{
@@ -23,6 +24,11 @@ that converge.}
 
 \item{model}{Specify the distribution of draws. Must be one of normal, skewt,
 vargamma, invgauss, or genhyper}
+
+\item{init}{Optional named list of starting parameter values, or a fitted
+parameter list returned by \code{tensor_mle()}. Recognized components depend on
+\code{model}; output-only components such as \code{loglik}, \code{AIC}, and \code{BIC} are
+ignored. Missing components use the model's default initialization.}
 }
 \value{
 A list containing the estimated mean array and the list of covariance

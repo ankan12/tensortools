@@ -9,7 +9,8 @@ tensor_mle_normal(
   max_iter = 1000,
   tol = 1e-06,
   quiet = TRUE,
-  restrict = NULL
+  restrict = NULL,
+  init = NULL
 )
 }
 \arguments{
@@ -18,6 +19,13 @@ tensor_mle_normal(
 \item{max_iter}{A max number of iterations to try to get covariance matrices that converge.}
 
 \item{tol}{A tolerance level to define the convergence of matrices.}
+
+\item{quiet}{Whether to suppress convergence messages.}
+
+\item{restrict}{Optional covariance scale restrictions.}
+
+\item{init}{Optional named list containing a starting value for \code{sigmas}.
+The normal mean is estimated directly as the sample mean.}
 }
 \value{
 A list containing the estimated mean array and the list of covariance matrices.

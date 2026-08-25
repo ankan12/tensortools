@@ -6,7 +6,7 @@
 #'
 #' @noRd
 tensor_mle_skewt <- function(data, max_iter = 1e3, tol = 1e-6,
-                             quiet = TRUE, restrict) {
+                             quiet = TRUE, restrict = NULL, init = NULL) {
   # get dim of input
   n <- n_draws(data)
   dims <- draw_shape(data)
@@ -16,7 +16,7 @@ tensor_mle_skewt <- function(data, max_iter = 1e3, tol = 1e-6,
   # Step 1: Initialize vals
 
   # different params based on model
-  nu <- 20
+  nu <- .tensor_mle_initial_value(init, "nu", 20)
 
   flat_draws <- aperm(unclass(data), c(seq.int(2L, o + 1L), 1L))
 
@@ -42,28 +42,25 @@ tensor_mle_skewt <- function(data, max_iter = 1e3, tol = 1e-6,
   # precision_resids <- simplify2array(precision_resids)
 
   # E[X] = M + nu/(nu-2) * skew
-  skew <- (nu-2)/nu * (mean_draws - median_draws)
+  skew <- if (!is.null(init) && !is.null(init$skew)) init$skew else
+    (nu-2)/nu * (mean_draws - median_draws)
 
   logliks <- rep(NA_real_, max_iter)
   pen_logliks <- rep(NA_real_, max_iter)
 
-  sigmas <- lapply(dims, diag)
-  mu <- median_draws
+  mu <- .tensor_mle_initial_value(init, "mu", median_draws)
 
-  for(k in 1:o) {
-    tot_sum <- 0
-
-    for(i in 1:n) {
-        curr_unfold <- matricization(.tensor_single_draw_array(pull_draw(data, i)) - mean_draws, k)
-
-        tot_sum <- tot_sum + (curr_unfold %*% t(curr_unfold))
-    }
-
-    tot_sum <- tot_sum * dims[k]/(n * n_star)
-
-    tot_sum <- tot_sum/(sum(diag(tot_sum))) * dims[k]
-
-    sigmas[[k]] <- tot_sum
+  if (!is.null(init) && !is.null(init$sigmas)) {
+    sigmas <- init$sigmas
+  } else {
+    normal_start <- tensor_mle_normal(
+      data,
+      max_iter = max_iter,
+      tol = tol,
+      quiet = TRUE,
+      restrict = NULL
+    )
+    sigmas <- normal_start$sigmas
   }
 
   for (t in 1:max_iter) {

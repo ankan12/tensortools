@@ -6,7 +6,7 @@
 #'
 #' @noRd
 tensor_mle_invgauss <- function(data, max_iter, tol,
-                                quiet = TRUE, restrict = NULL) {
+                                quiet = TRUE, restrict = NULL, init = NULL) {
 
   n <- n_draws(data)
   dims <- draw_shape(data)
@@ -16,33 +16,30 @@ tensor_mle_invgauss <- function(data, max_iter, tol,
   # Step 1: Initialize vals
 
   # different params based on model
-  kappa <- 2
+  kappa <- .tensor_mle_initial_value(init, "kappa", 2)
   flat_draws <- aperm(unclass(data), c(seq.int(2L, o + 1L), 1L))
 
   mean_draws <- apply(flat_draws, 1:o, mean)
   median_draws <- apply(flat_draws, 1:o, median)
-  mu <- median_draws
+  mu <- .tensor_mle_initial_value(init, "mu", median_draws)
 
   # E[X] = M + 1/kappa * skew
-  skew <- kappa * (mean_draws - median_draws)
+  skew <- if (!is.null(init) && !is.null(init$skew)) init$skew else
+    kappa * (mean_draws - median_draws)
 
   logliks <- rep(0, max_iter)
 
-  sigmas <- lapply(dims, diag)
-
-  for(k in 1:o) {
-    tot_sum <- 0
-    for(i in 1:n) {
-      curr_unfold <- matricization(.tensor_single_draw_array(pull_draw(data, i)) - mean_draws, k)
-
-      tot_sum <- tot_sum + tcrossprod(curr_unfold)
-    }
-
-    tot_sum <- tot_sum * dims[k]/(n * n_star)
-
-    tot_sum <- tot_sum/(sum(diag(tot_sum))) * dims[k]
-
-    sigmas[[k]] <- tot_sum
+  if (!is.null(init) && !is.null(init$sigmas)) {
+    sigmas <- init$sigmas
+  } else {
+    normal_start <- tensor_mle_normal(
+      data,
+      max_iter = max_iter,
+      tol = tol,
+      quiet = TRUE,
+      restrict = NULL
+    )
+    sigmas <- normal_start$sigmas
   }
 
   for (t in 1:max_iter) {

@@ -17,6 +17,563 @@ library(tidyverse)
 ```
 
 
+```{r}
+draws <- rtskewt(n = 1e3, 
+                 mu = mu_true, sigmas = sigmas_true, skew = skew_true, nu = 20)
+
+fit <- tensor_mle(draws, model = "skewt", tol = 1e-7, quiet = FALSE)
+
+test_inits <- tensor_mle(draws, model = "normal")
+
+test_fit_inits <- tensor_mle(draws, model = "skewt", tol = 1e-6, quiet = FALSE,
+                             init = test_inits)
+
+result <- tensor_gof_scores(
+  draws,
+  model = "skewt",
+  fit = test_fit_inits,
+  marginal_degree = 2,
+  include_interactions = TRUE,
+  max_basis = 50,
+  calibration = "multiplier",
+  B = 1999,
+  seed = 2026
+)
+
+result
+```
+
+
+# Fast score-adjusted Gaussian KS approximation
+
+The function below calibrates the pooled Rosenblatt KS process after fitting
+the model. It fits the model at most once, evaluates the Rosenblatt transform
+once, and uses the per-tensor likelihood scores to estimate the covariance
+lost through parameter estimation. Its Gaussian calibration only draws from a
+small estimated covariance matrix: it does not simulate new tensors, refit the
+model, or repeat the Rosenblatt transformation.
+
+```{r score-adjusted-gaussian-ks}
+score_adjusted_gaussian_ks <- function(
+    draws,
+    model = c("normal", "skewt", "vargamma", "invgauss", "genhyper"),
+    fit = NULL,
+    grid = seq(0.005, 0.995, length.out = 199L),
+    B = 4999L,
+    seed = NULL,
+    eigen_tol = 1e-8,
+    max_iter = 1000L,
+    tol = 1e-6,
+    quiet = TRUE,
+    rel.tol = 1e-7,
+    abs.tol = 1e-9,
+    subdivisions = 100L) {
+
+  model <- match.arg(model)
+  data_name <- deparse(substitute(draws))
+
+  if (!inherits(draws, "tensor")) {
+    stop("`draws` must be a `tensor` object.", call. = FALSE)
+  }
+
+  n <- n_draws(draws)
+  p <- prod(draw_shape(draws))
+  if (n < 3L) {
+    stop("At least three independent tensor draws are required.",
+         call. = FALSE)
+  }
+
+  if (!is.numeric(grid) || length(grid) < 2L ||
+      any(!is.finite(grid)) || any(grid <= 0 | grid >= 1)) {
+    stop("`grid` must contain at least two finite values in (0, 1).",
+         call. = FALSE)
+  }
+  grid <- sort(unique(as.numeric(grid)))
+  if (length(grid) < 2L) {
+    stop("`grid` must contain at least two distinct values.",
+         call. = FALSE)
+  }
+
+  if (length(B) != 1L || !is.numeric(B) || is.na(B) ||
+      !is.finite(B) || B < 1L || B != floor(B)) {
+    stop("`B` must be one positive integer.", call. = FALSE)
+  }
+  B <- as.integer(B)
+
+  if (!is.null(seed) &&
+      (length(seed) != 1L || !is.numeric(seed) || is.na(seed) ||
+       !is.finite(seed))) {
+    stop("`seed` must be `NULL` or one finite number.", call. = FALSE)
+  }
+
+  if (length(eigen_tol) != 1L || !is.numeric(eigen_tol) ||
+      is.na(eigen_tol) || !is.finite(eigen_tol) || eigen_tol <= 0) {
+    stop("`eigen_tol` must be one positive finite number.",
+         call. = FALSE)
+  }
+
+  if (is.null(fit)) {
+    fit <- tensor_mle(
+      draws,
+      model = model,
+      max_iter = max_iter,
+      tol = tol,
+      quiet = quiet
+    )
+  }
+  if (!is.list(fit)) {
+    stop("`fit` must be `NULL` or a fitted parameter list.",
+         call. = FALSE)
+  }
+
+  # tensor_scores() also returns the identifiable version of the fitted
+  # parameters. Using that same version in tensor_rosenblatt() keeps the
+  # nuisance-score calculation and transformation synchronized.
+  scores <- tensor_scores(draws, model = model, fit = fit)
+  fitted_parameters <- attr(scores, "fit")
+
+  uniforms <- tensor_rosenblatt(
+    draws,
+    model = model,
+    parameters = fitted_parameters,
+    rel.tol = rel.tol,
+    abs.tol = abs.tol,
+    subdivisions = subdivisions
+  )
+  uniform_matrix <- matrix(
+    as.numeric(unclass(uniforms)),
+    nrow = n,
+    ncol = p
+  )
+
+  # One row remains one independent tensor observation. Dividing the count
+  # by sqrt(p) makes its known-parameter covariance the Brownian-bridge
+  # covariance even though the diagnostic pools all p Rosenblatt entries.
+  counts <- vapply(
+    grid,
+    function(threshold) rowSums(uniform_matrix <= threshold),
+    numeric(n)
+  )
+  process_contributions <- sweep(counts, 2L, p * grid, "-") / sqrt(p)
+  colnames(process_contributions) <- paste0("t=", format(grid))
+
+  observed_process <- sqrt(n) * colMeans(process_contributions)
+  process_statistic <- max(abs(observed_process))
+  grid_ks_statistic <- process_statistic / sqrt(n * p)
+
+  centered_scores <- sweep(scores, 2L, colMeans(scores), "-")
+  centered_process <- sweep(
+    process_contributions,
+    2L,
+    colMeans(process_contributions),
+    "-"
+  )
+
+  symmetric_inverse <- function(value) {
+    value <- (value + t(value)) / 2
+    decomposition <- eigen(value, symmetric = TRUE)
+    largest <- max(abs(decomposition$values))
+
+    if (!is.finite(largest) || largest == 0) {
+      return(list(
+        inverse = matrix(0, nrow(value), ncol(value)),
+        rank = 0L,
+        values = decomposition$values
+      ))
+    }
+
+    retained <- decomposition$values > eigen_tol * largest
+    inverse <- matrix(0, nrow(value), ncol(value))
+    if (any(retained)) {
+      vectors <- decomposition$vectors[, retained, drop = FALSE]
+      inverse <- vectors %*%
+        sweep(t(vectors), 1L, decomposition$values[retained], "/")
+    }
+
+    list(
+      inverse = inverse,
+      rank = sum(retained),
+      values = decomposition$values
+    )
+  }
+
+  information <- crossprod(centered_scores) / n
+  information_inverse <- symmetric_inverse(information)
+  if (information_inverse$rank < ncol(scores)) {
+    warning(
+      "The fitted-score information matrix has numerical rank ",
+      information_inverse$rank, " of ", ncol(scores),
+      "; the Gaussian calibration may be unreliable.",
+      call. = FALSE
+    )
+  }
+
+  cross_covariance <-
+    crossprod(centered_process, centered_scores) / n
+  projection <- cross_covariance %*% information_inverse$inverse
+  adjusted_influence <-
+    centered_process - centered_scores %*% t(projection)
+  adjusted_covariance <- crossprod(adjusted_influence) / n
+
+  covariance_decomposition <- eigen(
+    (adjusted_covariance + t(adjusted_covariance)) / 2,
+    symmetric = TRUE
+  )
+  largest_covariance_eigenvalue <-
+    max(abs(covariance_decomposition$values))
+  retained <- covariance_decomposition$values >
+    eigen_tol * largest_covariance_eigenvalue
+  if (!any(retained)) {
+    stop("The adjusted process covariance has numerical rank zero.",
+         call. = FALSE)
+  }
+
+  covariance_root <- sweep(
+    covariance_decomposition$vectors[, retained, drop = FALSE],
+    2L,
+    sqrt(covariance_decomposition$values[retained]),
+    "*"
+  )
+
+  if (!is.null(seed)) {
+    set.seed(seed)
+  }
+  gaussian_processes <- matrix(
+    rnorm(B * sum(retained)),
+    nrow = B,
+    ncol = sum(retained)
+  ) %*% t(covariance_root)
+  gaussian_statistics <- apply(abs(gaussian_processes), 1L, max)
+  p_value <-
+    (1 + sum(gaussian_statistics >= process_statistic)) / (B + 1)
+
+  score_standard_errors <-
+    sqrt(pmax(diag(information), 0) / n)
+  standardized_score_mean <- rep(0, ncol(scores))
+  usable <- score_standard_errors > 0 & is.finite(score_standard_errors)
+  standardized_score_mean[usable] <-
+    colMeans(scores)[usable] / score_standard_errors[usable]
+  score_stationarity <- max(abs(standardized_score_mean))
+  if (is.finite(score_stationarity) && score_stationarity > 1) {
+    warning(
+      "The fitted likelihood score is not close to zero (maximum ",
+      "standardized mean = ", sprintf("%.2f", score_stationarity),
+      "); consider a tighter MLE convergence tolerance.",
+      call. = FALSE
+    )
+  }
+
+  structure(
+    list(
+      statistic = c(D = grid_ks_statistic),
+      p.value = p_value,
+      method = paste0(
+        "Score-adjusted Gaussian pooled Rosenblatt KS approximation for ",
+        "the tensor ", model, " model"
+      ),
+      data.name = data_name,
+      process.statistic = process_statistic,
+      grid = grid,
+      observed.process = observed_process,
+      B = B,
+      gaussian.statistics = gaussian_statistics,
+      adjusted.covariance = adjusted_covariance,
+      adjusted.covariance.rank = sum(retained),
+      information.rank = information_inverse$rank,
+      score.dimension = ncol(scores),
+      score.stationarity = score_stationarity,
+      fit = fitted_parameters,
+      uniforms = uniforms
+    ),
+    class = c("score_adjusted_gaussian_ks", "htest")
+  )
+}
+
+skew_true <- array(seq(by = 0.1, length.out = 24),
+                   dim = c(3, 4, 2))
+```
+
+For example, a fitted tensor-normal diagnostic can be obtained with
+
+```{r score-adjusted-gaussian-ks-example, eval=FALSE}
+test_score_ks <- function(iter, n) {
+  set.seed(iter)
+  
+  tvn_draws <- rtskewt(n = n, mu = mu_true, sigmas = sigmas_true,
+                       skew = skew_true, nu = 10)
+  
+  normal_fit <- tensor_mle(tvn_draws, model = "skewt", 
+                           tol = 1e-5)
+  
+  res <- score_adjusted_gaussian_ks(
+    tvn_draws,
+    model = "skewt",
+    fit = normal_fit,
+    B = 4999,
+    seed = iter)
+  
+  tibble(stat = res$statistic, p = res$p.value, n = n)
+}
+```
+
+
+```{r}
+test_score_ks(2, 1e3)
+
+#vals <- expand_grid(n = c(100, 200, 500, 1000), iter = 1:1000)
+vals <- expand_grid(n = 1000, iter = 1:100)
+
+
+library(furrr)
+plan(multisession, workers = 12)
+
+res <- future_pmap_dfr(vals, test_score_ks, 
+                       .options = furrr_options(seed = TRUE), 
+                       .progress = TRUE)
+res |> 
+  group_by(n) |> 
+  summarize(mean(p < 0.05))
+
+res |> 
+  ggplot() + 
+  geom_density(aes(x = p)) +
+  geom_histogram(aes(x = p, y = after_stat(density)), bins = 25, 
+                 color = "black", fill = "pink") +
+  facet_grid(~n) +
+  theme_minimal()
+
+res |> 
+  ggplot(aes(x = p)) +
+  stat_ecdf(geom = "step") +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  coord_equal() +
+  theme_minimal()
+```
+
+This is a test of the pooled marginal uniform distribution. It should be
+supplemented with a Rosenblatt-coordinate dependence diagnostic when the goal
+is a complete joint goodness-of-fit assessment.
+
+
+```{r}
+mu_true <- array(1:24, dim = c(3, 4, 2))
+
+S1 <- crossprod(matrix(rnorm(9), nrow = 3))
+S2 <- crossprod(matrix(rnorm(16), nrow = 4))
+S3 <- crossprod(matrix(rnorm(4), nrow = 2))
+```
+
+
+```{r}
+sigmas_true <- list(S1, S2, S3)
+
+normal_test <- function(iter) {
+  tvn_draws <- rtnorm(n = 1e3, mu = mu_true,
+                      sigmas = sigmas_true)
+  
+  mles <- tensor_mle(tvn_draws, model = "normal", tol = 1e-5)
+  
+  Z <- tvn_draws - mles$mu
+  
+  for(i in 1:3) {
+    R <- chol(mles$sigmas[[i]])
+    Z <- n_prod(Z, i, solve(t(R)))
+  }
+  
+  U <- pnorm(Z)
+  
+  test_res <- ks.test(c(Z), "pnorm")
+  #test_res <- ks.test(c(U), "punif", min = 0, max = 1)
+  tibble(p = test_res$p.value, iter = iter)
+}
+```
+
+
+```{r}
+library(furrr)
+library(tensortools)
+library(tidyverse)
+
+plan(multisession, workers = 8)
+res_norm <- future_map_dfr(1:100, normal_test, .progress = TRUE,
+                           .options = furrr_options(seed = NULL))
+
+sum(res_norm$p < 0.05)
+
+res_norm |> 
+ggplot() + 
+  geom_histogram(aes(x = p), color = "black", fill = "pink", bins = 50) +
+  theme_minimal()
+```
+
+
+```{r}
+compute_one <- function(iter, mles) {
+  tvn_sim <- rtnorm(n = 1e3, mu = mles$mu,
+                    sigmas = mles$sigmas)
+  
+  mles_curr <- tensor_mle(tvn_sim, model = "normal", init = mles)
+
+  Z_curr <- tvn_sim - mles_curr$mu
+  
+  for(i in 1:3) {
+    R_curr <- chol(mles_curr$sigmas[[i]])
+    Z_curr <- n_prod(Z_curr, i, solve(t(R_curr)))
+  }
+  
+  test_res <- ks.test(c(Z_curr), "pnorm")
+    
+  test_res$statistic
+}
+
+library(furrr)
+library(dplyr)
+
+plan(multisession, workers = 10)
+
+normal_bootstrap <- function(iter) {
+  tvn_draws <- rtnorm(n = 1e3, mu = mu_true,
+                      sigmas = sigmas_true)
+  
+  mles <- tensor_mle(tvn_draws, model = "normal")
+  
+  Z <- tvn_draws - mles$mu
+  
+  for(i in 1:3) {
+    R <- chol(mles$sigmas[[i]])
+    Z <- n_prod(Z, i, solve(t(R)))
+  }
+  
+  U <- pnorm(Z)
+  
+  test_res <- ks.test(c(Z), "pnorm")
+
+  statistics <- vector(mode = "numeric", length = 100)
+    
+  stats <- future_map_dbl(1:100, compute_one, mles = mles, .progress = TRUE,
+                          .options = furrr_options(seed = NULL))
+  
+  tibble(p = mean(test_res$statistic < stats), iter = iter)
+}
+```
+
+
+```{r}
+tic()
+normal_bootstrap(3)
+toc()
+```
+
+
+```{r}
+tic()
+mles <- tensor_mle(tvn_draws, model = "normal", tol = 1e-5)
+toc()
+```
+
+
+```{r}
+normal_test <- function() {
+  tvn_draws <- rtnorm(
+    n = 1e3,
+    mu = mu_true,
+    sigmas = sigmas_B
+  )
+
+  # --- Known parameters ---
+  Z_true <- tvn_draws - mu_true
+
+  for (i in 1:3) {
+    R <- chol(sigmas_B[[i]])
+    Z_true <- n_prod(Z_true, i, solve(t(R)))
+  }
+
+  D_true <- as.numeric(
+    ks.test(c(Z_true), "pnorm")$statistic
+  )
+
+  # --- Estimated parameters ---
+  mles <- tensor_mle(
+    tvn_draws,
+    model = "normal",
+    tol = 1e-5
+  )
+
+  Z_mle <- tvn_draws - mles$mu
+
+  for (i in 1:3) {
+    R <- chol(mles$sigmas[[i]])
+    Z_mle <- n_prod(Z_mle, i, solve(t(R)))
+  }
+
+  D_mle <- as.numeric(
+    ks.test(c(Z_mle), "pnorm")$statistic
+  )
+
+  c(
+    D_true = D_true,
+    D_mle = D_mle
+  )
+}
+
+```
+
+
+```{r}
+library(furrr)
+library(dplyr)
+
+plan(multisession, workers = 8)
+
+set.seed(123)
+
+res <- future_map_dfr(
+  1:1000,
+  ~normal_test(),
+  .options = furrr_options(seed = TRUE),
+  .progress = TRUE
+)
+
+plan(sequential)
+
+true_kronecker <- kronecker(S3, S2) |> kronecker(S1)
+sim_kronecker <- kronecker(mles$sigmas[[3]], mles$sigmas[[2]]) |> 
+  kronecker(mles$sigmas[[1]])
+
+mean((true_kronecker - sim_kronecker)^2)
+```
+
+
+```{r}
+res$D_true |> quantile()
+res$D_mle |> quantile()
+
+cbind(
+  true = quantile(res[, "D_true"],
+                  c(.90, .95, .99)),
+  mle = quantile(res[, "D_mle"],
+                 c(.90, .95, .99))
+)
+
+ggplot(res, aes(D_true, D_mle)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", formula = y ~ 0 + x) +
+  geom_abline(
+    slope = 1,
+    intercept = 0,
+    linetype = "dashed"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+L1 <- chol(S1)
+L2 <- chol(S2)
+L3 <- chol(S3)
+```
+
+
 # Rosenblatt diagnostics and goodness-of-fit tests
 
 This section implements a Rosenblatt goodness-of-fit test specifically for
@@ -1385,7 +1942,7 @@ rosenblatt_skew <- array(
 )
 
 rosenblatt_nu <- 7
-rosenblatt_n <- 100
+rosenblatt_n <- 1e3
 
 rosenblatt_normal_draws <- rtnorm(
   n = rosenblatt_n,
@@ -1409,13 +1966,8 @@ generating model, all returned entries should be independent Uniform\((0,1)\).
 The output remains a `tensor` object with the same number and shape of draws.
 
 ```{r rosenblatt-known-parameter-transforms}
-rosenblatt_normal_known <- tensor_rosenblatt(
-  draws = rosenblatt_normal_draws,
-  model = "normal",
-  parameters = list(
-    mu = rosenblatt_mu,
-    sigmas = rosenblatt_sigmas
-  )
+rosenblatt_normal_known <- tensor_normal_rosenblatt(
+  draws = rosenblatt_normal_draws
 )
 
 rosenblatt_skewt_known <- tensor_rosenblatt(
@@ -1435,6 +1987,15 @@ c(
   skewt_min = min(unclass(rosenblatt_skewt_known)),
   skewt_max = max(unclass(rosenblatt_skewt_known))
 )
+
+rosenblatt_normal_known |> 
+  c() |> 
+  as_tibble() |> 
+  ggplot() +
+  geom_density(aes(x = value), fill = "pink", color = "black", bins = 60) +
+  theme_minimal()
+
+ks.test(c(rosenblatt_normal_known), "punif", min = 0, max = 1)
 ```
 
 For the skew-\(t\) model, `rosenblatt_tskewt()` is a convenience wrapper around
@@ -8831,6 +9392,6 @@ grabmyo_skewt_boot <- tensor_cf_parametric_bootstrap(
   n_frequencies = 20,
   n_mixing = 20000,
   seed = 20260722,
-  show_progress = TRUE
 )
+  show_progress = TRUE
 ```

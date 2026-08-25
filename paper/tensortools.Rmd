@@ -536,7 +536,7 @@ str(tvn_mles)
 There are also density functions for each distribution. For the tensor variate normal, the required arguments are mu and sigmas. There is an optional log argument to compute the log density rather than the density itself.
 
 ```{r dtnorm}
-dtnorm(pull_draw(tvn_draws, 1), mu = mu_true, sigmas = sigmas_true)
+dtnorm(tvn_draws[1], mu = mu_true, sigmas = sigmas_true)
 ```
 
 ## Tensor decompositions
@@ -674,11 +674,11 @@ plot_malanobis <- function(draws, title = "Dist") {
 
 The figure below shows the Mahalanobis distance-distance plots along with the KS test statistic and $p$-value.
 ```{r plot-mahalanobis, echo = FALSE, fig.cap="From left to right, the input data is a multivariate normal, matrix variate normal with a separable covariance structure, matrix variate with nonseparable covariance matrices, and tensor variate normal with a separable covariance structure. When there is a separable covariance structure, the tensor variate distances should be comparable to the vector distances, leading to a small D value and a large p-value."}
-par(mfcol = c(1, 4))
-plot_malanobis(multivar_draws, title = "Multivar")
-plot_malanobis(matrix_draws, title = "Mat norm")
-plot_malanobis(matrix_nocovar_draws, title = "Mat no covar norm")
-plot_malanobis(tvn_draws, title = "Tensor norm")
+# par(mfcol = c(1, 4))
+# plot_malanobis(multivar_draws, title = "Multivar")
+# plot_malanobis(matrix_draws, title = "Mat norm")
+# plot_malanobis(matrix_nocovar_draws, title = "Mat no covar norm")
+# plot_malanobis(tvn_draws, title = "Tensor norm")
 ```
 
 We are also interested in performing a likelihood ratio test to see if one of the covariance matrices might be the identity matrix. Thus, we run the algorithm and restrict these matrices.
@@ -762,417 +762,417 @@ for(i in 1:3) {
 
 # Examples
 
-## GRABMyo
+<!-- ## GRABMyo -->
 
-The Gesture Recognition and Biometrics ElectroMyogram (GRABMyo) data set is a
-public collection of surface electromyography recordings from 43 participants
-[@grabmyo]. Each participant performed 16 active hand gestures in seven
-repeated trials. Participants are the independent draws in this analysis, and
-each processed draw is a $16 \times 28 \times 16$ gesture $\times$ channel
-$\times$ movement-phase tensor.
+<!-- The Gesture Recognition and Biometrics ElectroMyogram (GRABMyo) data set is a -->
+<!-- public collection of surface electromyography recordings from 43 participants -->
+<!-- [@grabmyo]. Each participant performed 16 active hand gestures in seven -->
+<!-- repeated trials. Participants are the independent draws in this analysis, and -->
+<!-- each processed draw is a $16 \times 28 \times 16$ gesture $\times$ channel -->
+<!-- $\times$ movement-phase tensor. -->
 
-The complete download and preprocessing pipeline is provided in the
-supplementary script `scripts/grabmyo_preprocess.R`. It reads the public WFDB records, converts device counts to millivolts, removes the four
-unused channels, computes log-RMS amplitude over 16 equal phase bins, averages
-the seven trials within participant and gesture, and writes the compact
-processed data set loaded below.
+<!-- The complete download and preprocessing pipeline is provided in the -->
+<!-- supplementary script `scripts/grabmyo_preprocess.R`. It reads the public WFDB records, converts device counts to millivolts, removes the four -->
+<!-- unused channels, computes log-RMS amplitude over 16 equal phase bins, averages -->
+<!-- the seven trials within participant and gesture, and writes the compact -->
+<!-- processed data set loaded below. -->
 
-```{r grabmyo-load-processed, echo = FALSE}
-grabmyo_tensor_file <- file.path(
-  "data", "GRABMyo",
-  "grabmyo_session1_tensors_16x28x16.rds"
-)
+<!-- ```{r grabmyo-load-processed, echo = FALSE} -->
+<!-- grabmyo_tensor_file <- file.path( -->
+<!--   "data", "GRABMyo", -->
+<!--   "grabmyo_session1_tensors_16x28x16.rds" -->
+<!-- ) -->
 
-grabmyo_tensors <- readRDS(grabmyo_tensor_file)
-```
-
-
-```{r grabmyo-example-plot, fig.alt="Heat map of log-RMS EMG amplitude by channel and movement-phase bin for the first gesture", echo = FALSE}
-grabmyo_tensors[[1]][1, , ] |>
-  plot_matrix() +
-  labs(x = "Phase bins",
-       y = "Channels")
-```
-
-We fit a tensor-variate normal model to the 43 participant tensors. For
-comparison, each tensor is matricized along each of its three modes, and an
-ordinary matrix-variate normal model is fitted to each dataset.
-
-```{r grabmyo-fit-models, cache=TRUE}
-grabmyo_fit_timed <- function(label, draws, model = "normal") {
-  message(
-    "Fitting ", label, " with dimensions ",
-    paste(dim(draws[[1]]), collapse = " x ")
-  )
-  started <- Sys.time()
-  fit <- tensor_mle(
-    draws,
-    model = model,
-    max_iter = 1000,
-    tol = 1e-6,
-    quiet = FALSE
-  )
-  fit$elapsed_seconds <- as.numeric(difftime(
-    Sys.time(), started, units = "secs"
-  ))
-  fit
-}
-
-#fit the tensor
-grabmyo_fits <- list(
-  tensor = grabmyo_fit_timed("tensor", grabmyo_tensors)
-)
+<!-- grabmyo_tensors <- readRDS(grabmyo_tensor_file) -->
+<!-- ``` -->
 
 
-for (mode in 1:3) { #fit the matricizations
-  matrix_draws <- lapply(
-    grabmyo_tensors,
-    matricization,
-    k = mode
-  )
-  label <- paste0("mat", mode)
-  grabmyo_fits[[label]] <- grabmyo_fit_timed(label, matrix_draws)
-  rm(matrix_draws)
-  gc(FALSE)
-}
-```
+<!-- ```{r grabmyo-example-plot, fig.alt="Heat map of log-RMS EMG amplitude by channel and movement-phase bin for the first gesture", echo = FALSE} -->
+<!-- grabmyo_tensors[[1]][1, , ] |> -->
+<!--   plot_matrix() + -->
+<!--   labs(x = "Phase bins", -->
+<!--        y = "Channels") -->
+<!-- ``` -->
+
+<!-- We fit a tensor-variate normal model to the 43 participant tensors. For -->
+<!-- comparison, each tensor is matricized along each of its three modes, and an -->
+<!-- ordinary matrix-variate normal model is fitted to each dataset. -->
+
+<!-- ```{r grabmyo-fit-models, cache=TRUE} -->
+<!-- grabmyo_fit_timed <- function(label, draws, model = "normal") { -->
+<!--   message( -->
+<!--     "Fitting ", label, " with dimensions ", -->
+<!--     paste(dim(draws[[1]]), collapse = " x ") -->
+<!--   ) -->
+<!--   started <- Sys.time() -->
+<!--   fit <- tensor_mle( -->
+<!--     draws, -->
+<!--     model = model, -->
+<!--     max_iter = 1000, -->
+<!--     tol = 1e-6, -->
+<!--     quiet = FALSE -->
+<!--   ) -->
+<!--   fit$elapsed_seconds <- as.numeric(difftime( -->
+<!--     Sys.time(), started, units = "secs" -->
+<!--   )) -->
+<!--   fit -->
+<!-- } -->
+
+<!-- #fit the tensor -->
+<!-- grabmyo_fits <- list( -->
+<!--   tensor = grabmyo_fit_timed("tensor", grabmyo_tensors) -->
+<!-- ) -->
 
 
-```{r grabmyo-normal-table, echo = FALSE}
-grabmyo_dimensions <- c(
-  tensor = "16 x 28 x 16",
-  mat1 = "16 x 448",
-  mat2 = "28 x 256",
-  mat3 = "16 x 448"
-)
-
-grabmyo_results <- purrr::imap_dfr(
-  grabmyo_fits,
-  \(fit, model) tibble::tibble(
-    model,
-    dimensions = grabmyo_dimensions[[model]],
-    loglik = fit$loglik,
-    k = fit$k,
-    AIC = fit$AIC,
-    BIC = fit$BIC,
-    secs = fit$elapsed_seconds
-  )
-) |>
-  arrange(BIC) |>
-  mutate(
-    delta_AIC = AIC - min(AIC),
-    delta_BIC = BIC - min(BIC)
-  )
+<!-- for (mode in 1:3) { #fit the matricizations -->
+<!--   matrix_draws <- lapply( -->
+<!--     grabmyo_tensors, -->
+<!--     matricization, -->
+<!--     k = mode -->
+<!--   ) -->
+<!--   label <- paste0("mat", mode) -->
+<!--   grabmyo_fits[[label]] <- grabmyo_fit_timed(label, matrix_draws) -->
+<!--   rm(matrix_draws) -->
+<!--   gc(FALSE) -->
+<!-- } -->
+<!-- ``` -->
 
 
-knitr::kable(
-  grabmyo_results,
-  digits = 1,
-  booktabs = TRUE,
-  caption = "Tensor-normal and matrix-normal fits to the GRABMyo data."
-)
-```
+<!-- ```{r grabmyo-normal-table, echo = FALSE} -->
+<!-- grabmyo_dimensions <- c( -->
+<!--   tensor = "16 x 28 x 16", -->
+<!--   mat1 = "16 x 448", -->
+<!--   mat2 = "28 x 256", -->
+<!--   mat3 = "16 x 448" -->
+<!-- ) -->
 
-All three matrix models attain larger maximized likelihoods because the tensor
-covariance family is nested within each matricized covariance family. BIC
-selects the tensor model, which estimates only 7,844 parameters, compared with
-40,469 for the next-smallest matricization.
-
-The estimated mode-specific correlation matrices provide separate summaries of dependence among gestures, channels, and movement-phase bins.
-
-```{r grabmyo-covariance-plots, fig.alt="Three heat maps showing estimated correlations among gestures, channels, and movement-phase bins", echo = FALSE}
-plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[1]])) +
-  labs(x = "", y = "", title = "Gestures") +
-  plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[2]])) +
-  labs(x = "", y = "", title = "Channels") +
-  plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[3]])) +
-  labs(x = "", y = "", title = "Phase bins")
-```
-
-
-```{r grabmyo-fit-distributions, cache=TRUE}
-grabmyo_non_normal_models <- c(
-  "skewt", "vargamma", "invgauss", "genhyper"
-)
-
-grabmyo_distribution_fits <- c(
-  normal = list(grabmyo_fits$tensor),
-  purrr::map(
-    purrr::set_names(grabmyo_non_normal_models),
-    \(model) grabmyo_fit_timed(
-      label = model,
-      draws = grabmyo_tensors,
-      model = model
-    )
-  )
-)
-```
+<!-- grabmyo_results <- purrr::imap_dfr( -->
+<!--   grabmyo_fits, -->
+<!--   \(fit, model) tibble::tibble( -->
+<!--     model, -->
+<!--     dimensions = grabmyo_dimensions[[model]], -->
+<!--     loglik = fit$loglik, -->
+<!--     k = fit$k, -->
+<!--     AIC = fit$AIC, -->
+<!--     BIC = fit$BIC, -->
+<!--     secs = fit$elapsed_seconds -->
+<!--   ) -->
+<!-- ) |> -->
+<!--   arrange(BIC) |> -->
+<!--   mutate( -->
+<!--     delta_AIC = AIC - min(AIC), -->
+<!--     delta_BIC = BIC - min(BIC) -->
+<!--   ) -->
 
 
-```{r grabmyo-results, echo = FALSE}
-grabmyo_distribution_labels <- c(
-  normal = "Normal",
-  skewt = "Skew-t",
-  vargamma = "Variance-gamma",
-  invgauss = "Normal-inverse-Gaussian",
-  genhyper = "Generalized hyperbolic"
-)
+<!-- knitr::kable( -->
+<!--   grabmyo_results, -->
+<!--   digits = 1, -->
+<!--   booktabs = TRUE, -->
+<!--   caption = "Tensor-normal and matrix-normal fits to the GRABMyo data." -->
+<!-- ) -->
+<!-- ``` -->
 
-grabmyo_distribution_results <- purrr::imap_dfr(
-  grabmyo_distribution_fits,
-  \(fit, model) tibble::tibble(
-    model = grabmyo_distribution_labels[[model]],
-    parameter = switch(
-      model,
-      normal = "none",
-      skewt = sprintf("nu = %.2f", fit$nu),
-      vargamma = sprintf("gamma = %.3f", fit$gamma),
-      invgauss = sprintf("kappa = %.2f", fit$kappa),
-      genhyper = sprintf(
-        "lambda = %.2f; omega = %.2f", fit$lambda, fit$omega
-      )
-    ),
-    loglik = fit$loglik,
-    k = fit$k,
-    AIC = fit$AIC,
-    BIC = fit$BIC,
-    secs = fit$elapsed_seconds
-  )
-) |>
-  arrange(BIC) |>
-  mutate(
-    delta_AIC = AIC - min(AIC),
-    delta_BIC = BIC - min(BIC)
-  )
+<!-- All three matrix models attain larger maximized likelihoods because the tensor -->
+<!-- covariance family is nested within each matricized covariance family. BIC -->
+<!-- selects the tensor model, which estimates only 7,844 parameters, compared with -->
+<!-- 40,469 for the next-smallest matricization. -->
 
-knitr::kable(
-  grabmyo_distribution_results,
-  digits = 1,
-  booktabs = TRUE,
-  caption = paste(
-    "Tensor distribution fits to the 43 processed GRABMyo",
-    "participant tensors."
-  )
-)
-```
+<!-- The estimated mode-specific correlation matrices provide separate summaries of dependence among gestures, channels, and movement-phase bins. -->
 
-Both information criteria select the skew-$t$ distribution, with the
-generalized hyperbolic distribution providing the next-best fit. The large
-improvement over the normal model remains after penalizing the non-normal
-models for estimating an additional $16 \times 28 \times 16$ skewness tensor.
-
-## Goodness of Fit Using Characteristic Function
-
-```{r}
-skew_true <- array(
-  data = seq(1, 10, length.out = prod(dim(mu_true))),
-  dim = dim(mu_true)
-)
-
-skewt_draws <- rtskewt(
-  n = 1e3,
-  mu = mu_true,
-  sigmas = sigmas_true,
-  skew = skew_true,
-  nu = 20
-)
-
-invgauss_draws <- rtinvgauss(n = 1e3,
-                             mu = mu_true,
-                             sigmas = sigmas_true,
-                             skew = skew_true)
-
-ecf_empirical <- function(draws, frequency) {
-  draws_mat <- matricization(draws, 1)
-  frequency_vec <- as.numeric(frequency)
-
-  mean(exp(1i * drop(draws_mat %*% frequency_vec)))
-}
-
-cf_gig <- function(u, A, B, lambda) {
-  z <- A - 2i * u
-
-  (A / z)^(lambda / 2) *
-    Bessel::BesselK(z = sqrt(B * z), nu = lambda) /
-    Bessel::BesselK(z = sqrt(A * B), nu = lambda)
-}
-
-cf_skewt_centered <- function(r, q, nu) {
-  if (q <= .Machine$double.eps) {
-    return(1 + 0i)
-  }
-
-  lambda <- -nu / 2
-
-  normalizer <-
-    2 * (nu / 2)^(nu / 2) / gamma(nu / 2) *
-    (q / nu)^(nu / 4) *
-    Bessel::BesselK(z = sqrt(nu * q), nu = lambda)
-
-  normalizer * cf_gig(r, q, nu, lambda)
-}
-
-cf_tensor_skewt <- function(frequency, mu, skew, sigmas, nu) {
-  if (!identical(dim(frequency), dim(mu)) ||
-      !identical(dim(skew), dim(mu))) {
-    stop("frequency, mu, and skew must have identical dimensions.")
-  }
-
-  sigma_frequency <- frequency
-  for (k in seq_along(sigmas)) {
-    sigma_frequency <- n_prod(sigma_frequency, k, sigmas[[k]])
-  }
-
-  location <- sum(frequency * mu)
-  r <- sum(frequency * skew)
-  q <- sum(frequency * sigma_frequency)
-
-  exp(1i * location) * cf_skewt_centered(r, q, nu)
-}
-
-T_array <- array(rnorm(prod(dim(mu_true))), dim = dim(mu_true))
-
-# Normalize the direction so that t' Sigma t = 1. This keeps the comparison
-# informative when the tensor dimension is moderate or large.
-sigma_T <- T_array
-for (k in seq_along(sigmas_true)) {
-  sigma_T <- n_prod(sigma_T, k, sigmas_true[[k]])
-}
-T_array <- T_array / sqrt(sum(T_array * sigma_T))
-
-cf_comparison <- tibble(
-  empirical = ecf_empirical(skewt_draws, T_array),
-  theoretical = cf_tensor_skewt(
-    T_array,
-    mu = mu_true,
-    skew = skew_true,
-    sigmas = sigmas_true,
-    nu = 20
-  )
-) |>
-  mutate(abs_difference = abs(empirical - theoretical))
-
-cf_comparison
-```
-
-The comparison can also be visualized along a ray of frequency tensors. For
-each scalar $s$, we evaluate both characteristic functions at $sT$.
-
-```{r}
-frequency_scales <- seq(0, 3, length.out = 100)
-
-cf_ray_values <- purrr::map_dfr(frequency_scales, function(s) {
-  frequency <- s * T_array
-
-  tibble(
-    scale = s,
-    empirical = ecf_empirical(skewt_draws, frequency),
-    theoretical = cf_tensor_skewt(
-      frequency,
-      mu = mu_true,
-      skew = skew_true,
-      sigmas = sigmas_true,
-      nu = 20
-    )
-  )
-}) |>
-  mutate(
-    empirical_real = Re(empirical),
-    theoretical_real = Re(theoretical),
-    empirical_imag = Im(empirical),
-    theoretical_imag = Im(theoretical)
-  ) |>
-  mutate(
-    complex_difference = empirical - theoretical,
-    abs_difference = abs(complex_difference),
-    squared_difference = abs_difference^2
-  )
-
-cf_ray_summary <- tibble(
-  max_abs_difference = max(cf_ray_values$abs_difference),
-  mean_abs_difference = mean(cf_ray_values$abs_difference),
-  mean_squared_difference = mean(cf_ray_values$squared_difference),
-  integrated_ray_score = sum(
-    diff(cf_ray_values$scale) *
-      (head(cf_ray_values$squared_difference, -1) +
-         tail(cf_ray_values$squared_difference, -1)) / 2
-  )
-)
-
-cf_ray_summary
-
-cf_ray <- cf_ray_values |>
-  select(scale, starts_with("empirical_"), starts_with("theoretical_")) |>
-  pivot_longer(
-    -scale,
-    names_to = c("source", "component"),
-    names_sep = "_"
-  )
-
-ggplot(cf_ray, aes(x = scale, y = value, color = source)) +
-  geom_line(lty = 2) +
-  facet_wrap(~component, ncol = 1) +
-  labs(
-    x = "Frequency scale",
-    y = "Characteristic function",
-    title = "Skew t draws, Theoretical Skew t",
-    color = ""
-  ) +
-  theme_minimal()
-```
+<!-- ```{r grabmyo-covariance-plots, fig.alt="Three heat maps showing estimated correlations among gestures, channels, and movement-phase bins", echo = FALSE} -->
+<!-- plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[1]])) + -->
+<!--   labs(x = "", y = "", title = "Gestures") + -->
+<!--   plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[2]])) + -->
+<!--   labs(x = "", y = "", title = "Channels") + -->
+<!--   plot_matrix(cov2cor(grabmyo_fits$tensor$sigmas[[3]])) + -->
+<!--   labs(x = "", y = "", title = "Phase bins") -->
+<!-- ``` -->
 
 
-```{r}
-cf_ray <- purrr::map_dfr(frequency_scales, function(s) {
-  frequency <- s * T_array
+<!-- ```{r grabmyo-fit-distributions, cache=TRUE} -->
+<!-- grabmyo_non_normal_models <- c( -->
+<!--   "skewt", "vargamma", "invgauss", "genhyper" -->
+<!-- ) -->
 
-  tibble(
-    scale = s,
-    empirical = ecf_empirical(invgauss_draws, frequency),
-    theoretical = cf_tensor_skewt(
-      frequency,
-      mu = mu_true,
-      skew = skew_true,
-      sigmas = sigmas_true,
-      nu = 20
-    )
-  )
-}) |>
-  mutate(
-    empirical_real = Re(empirical),
-    theoretical_real = Re(theoretical),
-    empirical_imag = Im(empirical),
-    theoretical_imag = Im(theoretical)
-  ) |>
-  select(scale, starts_with("empirical_"), starts_with("theoretical_")) |>
-  pivot_longer(
-    -scale,
-    names_to = c("source", "component"),
-    names_sep = "_"
-  )
-
-ggplot(cf_ray, aes(x = scale, y = value, color = source)) +
-  geom_line(lty = 2) +
-  facet_wrap(~component, ncol = 1) +
-  labs(
-    x = "Frequency scale",
-    y = "Characteristic function",
-    title = "Inv Gauss draws, Theoretical Skew t",
-    color = ""
-  ) +
-  theme_minimal()
-```
+<!-- grabmyo_distribution_fits <- c( -->
+<!--   normal = list(grabmyo_fits$tensor), -->
+<!--   purrr::map( -->
+<!--     purrr::set_names(grabmyo_non_normal_models), -->
+<!--     \(model) grabmyo_fit_timed( -->
+<!--       label = model, -->
+<!--       draws = grabmyo_tensors, -->
+<!--       model = model -->
+<!--     ) -->
+<!--   ) -->
+<!-- ) -->
+<!-- ``` -->
 
 
-```{r}
-cf_ray |>
-  group_by(value) |>
+<!-- ```{r grabmyo-results, echo = FALSE} -->
+<!-- grabmyo_distribution_labels <- c( -->
+<!--   normal = "Normal", -->
+<!--   skewt = "Skew-t", -->
+<!--   vargamma = "Variance-gamma", -->
+<!--   invgauss = "Normal-inverse-Gaussian", -->
+<!--   genhyper = "Generalized hyperbolic" -->
+<!-- ) -->
 
-```
+<!-- grabmyo_distribution_results <- purrr::imap_dfr( -->
+<!--   grabmyo_distribution_fits, -->
+<!--   \(fit, model) tibble::tibble( -->
+<!--     model = grabmyo_distribution_labels[[model]], -->
+<!--     parameter = switch( -->
+<!--       model, -->
+<!--       normal = "none", -->
+<!--       skewt = sprintf("nu = %.2f", fit$nu), -->
+<!--       vargamma = sprintf("gamma = %.3f", fit$gamma), -->
+<!--       invgauss = sprintf("kappa = %.2f", fit$kappa), -->
+<!--       genhyper = sprintf( -->
+<!--         "lambda = %.2f; omega = %.2f", fit$lambda, fit$omega -->
+<!--       ) -->
+<!--     ), -->
+<!--     loglik = fit$loglik, -->
+<!--     k = fit$k, -->
+<!--     AIC = fit$AIC, -->
+<!--     BIC = fit$BIC, -->
+<!--     secs = fit$elapsed_seconds -->
+<!--   ) -->
+<!-- ) |> -->
+<!--   arrange(BIC) |> -->
+<!--   mutate( -->
+<!--     delta_AIC = AIC - min(AIC), -->
+<!--     delta_BIC = BIC - min(BIC) -->
+<!--   ) -->
 
-For a goodness-of-fit diagnostic, replace the true parameters above with the
-fitted values from `tensor_mle(skewt_draws, model = "skewt")`, then calibrate
-the discrepancy using a parametric bootstrap.
+<!-- knitr::kable( -->
+<!--   grabmyo_distribution_results, -->
+<!--   digits = 1, -->
+<!--   booktabs = TRUE, -->
+<!--   caption = paste( -->
+<!--     "Tensor distribution fits to the 43 processed GRABMyo", -->
+<!--     "participant tensors." -->
+<!--   ) -->
+<!-- ) -->
+<!-- ``` -->
+
+<!-- Both information criteria select the skew-$t$ distribution, with the -->
+<!-- generalized hyperbolic distribution providing the next-best fit. The large -->
+<!-- improvement over the normal model remains after penalizing the non-normal -->
+<!-- models for estimating an additional $16 \times 28 \times 16$ skewness tensor. -->
+
+<!-- ## Goodness of Fit Using Characteristic Function -->
+
+<!-- ```{r} -->
+<!-- skew_true <- array( -->
+<!--   data = seq(1, 10, length.out = prod(dim(mu_true))), -->
+<!--   dim = dim(mu_true) -->
+<!-- ) -->
+
+<!-- skewt_draws <- rtskewt( -->
+<!--   n = 1e3, -->
+<!--   mu = mu_true, -->
+<!--   sigmas = sigmas_true, -->
+<!--   skew = skew_true, -->
+<!--   nu = 20 -->
+<!-- ) -->
+
+<!-- invgauss_draws <- rtinvgauss(n = 1e3, -->
+<!--                              mu = mu_true, -->
+<!--                              sigmas = sigmas_true, -->
+<!--                              skew = skew_true) -->
+
+<!-- ecf_empirical <- function(draws, frequency) { -->
+<!--   draws_mat <- matricization(draws, 1) -->
+<!--   frequency_vec <- as.numeric(frequency) -->
+
+<!--   mean(exp(1i * drop(draws_mat %*% frequency_vec))) -->
+<!-- } -->
+
+<!-- cf_gig <- function(u, A, B, lambda) { -->
+<!--   z <- A - 2i * u -->
+
+<!--   (A / z)^(lambda / 2) * -->
+<!--     Bessel::BesselK(z = sqrt(B * z), nu = lambda) / -->
+<!--     Bessel::BesselK(z = sqrt(A * B), nu = lambda) -->
+<!-- } -->
+
+<!-- cf_skewt_centered <- function(r, q, nu) { -->
+<!--   if (q <= .Machine$double.eps) { -->
+<!--     return(1 + 0i) -->
+<!--   } -->
+
+<!--   lambda <- -nu / 2 -->
+
+<!--   normalizer <- -->
+<!--     2 * (nu / 2)^(nu / 2) / gamma(nu / 2) * -->
+<!--     (q / nu)^(nu / 4) * -->
+<!--     Bessel::BesselK(z = sqrt(nu * q), nu = lambda) -->
+
+<!--   normalizer * cf_gig(r, q, nu, lambda) -->
+<!-- } -->
+
+<!-- cf_tensor_skewt <- function(frequency, mu, skew, sigmas, nu) { -->
+<!--   if (!identical(dim(frequency), dim(mu)) || -->
+<!--       !identical(dim(skew), dim(mu))) { -->
+<!--     stop("frequency, mu, and skew must have identical dimensions.") -->
+<!--   } -->
+
+<!--   sigma_frequency <- frequency -->
+<!--   for (k in seq_along(sigmas)) { -->
+<!--     sigma_frequency <- n_prod(sigma_frequency, k, sigmas[[k]]) -->
+<!--   } -->
+
+<!--   location <- sum(frequency * mu) -->
+<!--   r <- sum(frequency * skew) -->
+<!--   q <- sum(frequency * sigma_frequency) -->
+
+<!--   exp(1i * location) * cf_skewt_centered(r, q, nu) -->
+<!-- } -->
+
+<!-- T_array <- array(rnorm(prod(dim(mu_true))), dim = dim(mu_true)) -->
+
+<!-- # Normalize the direction so that t' Sigma t = 1. This keeps the comparison -->
+<!-- # informative when the tensor dimension is moderate or large. -->
+<!-- sigma_T <- T_array -->
+<!-- for (k in seq_along(sigmas_true)) { -->
+<!--   sigma_T <- n_prod(sigma_T, k, sigmas_true[[k]]) -->
+<!-- } -->
+<!-- T_array <- T_array / sqrt(sum(T_array * sigma_T)) -->
+
+<!-- cf_comparison <- tibble( -->
+<!--   empirical = ecf_empirical(skewt_draws, T_array), -->
+<!--   theoretical = cf_tensor_skewt( -->
+<!--     T_array, -->
+<!--     mu = mu_true, -->
+<!--     skew = skew_true, -->
+<!--     sigmas = sigmas_true, -->
+<!--     nu = 20 -->
+<!--   ) -->
+<!-- ) |> -->
+<!--   mutate(abs_difference = abs(empirical - theoretical)) -->
+
+<!-- cf_comparison -->
+<!-- ``` -->
+
+<!-- The comparison can also be visualized along a ray of frequency tensors. For -->
+<!-- each scalar $s$, we evaluate both characteristic functions at $sT$. -->
+
+<!-- ```{r} -->
+<!-- frequency_scales <- seq(0, 3, length.out = 100) -->
+
+<!-- cf_ray_values <- purrr::map_dfr(frequency_scales, function(s) { -->
+<!--   frequency <- s * T_array -->
+
+<!--   tibble( -->
+<!--     scale = s, -->
+<!--     empirical = ecf_empirical(skewt_draws, frequency), -->
+<!--     theoretical = cf_tensor_skewt( -->
+<!--       frequency, -->
+<!--       mu = mu_true, -->
+<!--       skew = skew_true, -->
+<!--       sigmas = sigmas_true, -->
+<!--       nu = 20 -->
+<!--     ) -->
+<!--   ) -->
+<!-- }) |> -->
+<!--   mutate( -->
+<!--     empirical_real = Re(empirical), -->
+<!--     theoretical_real = Re(theoretical), -->
+<!--     empirical_imag = Im(empirical), -->
+<!--     theoretical_imag = Im(theoretical) -->
+<!--   ) |> -->
+<!--   mutate( -->
+<!--     complex_difference = empirical - theoretical, -->
+<!--     abs_difference = abs(complex_difference), -->
+<!--     squared_difference = abs_difference^2 -->
+<!--   ) -->
+
+<!-- cf_ray_summary <- tibble( -->
+<!--   max_abs_difference = max(cf_ray_values$abs_difference), -->
+<!--   mean_abs_difference = mean(cf_ray_values$abs_difference), -->
+<!--   mean_squared_difference = mean(cf_ray_values$squared_difference), -->
+<!--   integrated_ray_score = sum( -->
+<!--     diff(cf_ray_values$scale) * -->
+<!--       (head(cf_ray_values$squared_difference, -1) + -->
+<!--          tail(cf_ray_values$squared_difference, -1)) / 2 -->
+<!--   ) -->
+<!-- ) -->
+
+<!-- cf_ray_summary -->
+
+<!-- cf_ray <- cf_ray_values |> -->
+<!--   select(scale, starts_with("empirical_"), starts_with("theoretical_")) |> -->
+<!--   pivot_longer( -->
+<!--     -scale, -->
+<!--     names_to = c("source", "component"), -->
+<!--     names_sep = "_" -->
+<!--   ) -->
+
+<!-- ggplot(cf_ray, aes(x = scale, y = value, color = source)) + -->
+<!--   geom_line(lty = 2) + -->
+<!--   facet_wrap(~component, ncol = 1) + -->
+<!--   labs( -->
+<!--     x = "Frequency scale", -->
+<!--     y = "Characteristic function", -->
+<!--     title = "Skew t draws, Theoretical Skew t", -->
+<!--     color = "" -->
+<!--   ) + -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- cf_ray <- purrr::map_dfr(frequency_scales, function(s) { -->
+<!--   frequency <- s * T_array -->
+
+<!--   tibble( -->
+<!--     scale = s, -->
+<!--     empirical = ecf_empirical(invgauss_draws, frequency), -->
+<!--     theoretical = cf_tensor_skewt( -->
+<!--       frequency, -->
+<!--       mu = mu_true, -->
+<!--       skew = skew_true, -->
+<!--       sigmas = sigmas_true, -->
+<!--       nu = 20 -->
+<!--     ) -->
+<!--   ) -->
+<!-- }) |> -->
+<!--   mutate( -->
+<!--     empirical_real = Re(empirical), -->
+<!--     theoretical_real = Re(theoretical), -->
+<!--     empirical_imag = Im(empirical), -->
+<!--     theoretical_imag = Im(theoretical) -->
+<!--   ) |> -->
+<!--   select(scale, starts_with("empirical_"), starts_with("theoretical_")) |> -->
+<!--   pivot_longer( -->
+<!--     -scale, -->
+<!--     names_to = c("source", "component"), -->
+<!--     names_sep = "_" -->
+<!--   ) -->
+
+<!-- ggplot(cf_ray, aes(x = scale, y = value, color = source)) + -->
+<!--   geom_line(lty = 2) + -->
+<!--   facet_wrap(~component, ncol = 1) + -->
+<!--   labs( -->
+<!--     x = "Frequency scale", -->
+<!--     y = "Characteristic function", -->
+<!--     title = "Inv Gauss draws, Theoretical Skew t", -->
+<!--     color = "" -->
+<!--   ) + -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- cf_ray |> -->
+<!--   group_by(value) |> -->
+
+<!-- ``` -->
+
+<!-- For a goodness-of-fit diagnostic, replace the true parameters above with the -->
+<!-- fitted values from `tensor_mle(skewt_draws, model = "skewt")`, then calibrate -->
+<!-- the discrepancy using a parametric bootstrap. -->
 
 
 # Discussion
