@@ -39,7 +39,6 @@ header-includes:
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  cache = TRUE,
   comment = "#>",
   fig.path = "man/figures/README-",
   out.width = "100%"
@@ -202,12 +201,11 @@ When simulating draws, the output is represented a list of $n$ draws. Each eleme
 
 
 ```{r}
-matrix_draws[[1]]
+matrix_draws[1]
 ```
 
 
-Below is a simulation from a tensor variate normal of size $3 \times 4 \times
-2$.The covariance structure is specified with a list of matrices. 
+Below is a simulation from a tensor variate normal of size $3 \times 4 \times 2$. The covariance structure is specified with a list of matrices. 
 
 ```{r}
 mu_true <- array(1:24, dim = c(3, 4, 2))
@@ -219,7 +217,7 @@ S3 <- crossprod(matrix(rnorm(4), nrow = 2))
 tvn_draws <- rtnorm(n = 1e3, mu = mu_true,
                     sigmas = list(S1, S2, S3))
 
-tvn_draws[[1]]
+tvn_draws[1]
 ```
 
 
@@ -228,21 +226,46 @@ tvn_draws[[1]]
 
 ## MLE estimation for the tensor variate normal 
 
-The package supports MLE estimation. Given an array of draws, it will return a list containing the MLE for the mean and covariance matrices. Earlier, we generated univariate normal draws with $\mu = 2$ and $\sigma^{2} = 4.$ Calling the function  `tensor_mle()`{.R} will return MLEs similar to the true results. 
+The package supports MLE estimation. Given an array of draws, it will return a list containing the MLE for the mean and covariance matrices. Earlier, we generated univariate normal draws with $\mu = -2$ and $\sigma^{2} = 4.$ Calling the function  `tensor_mle()`{.R} will return MLEs similar to the true results. 
 
 ```{r}
 (univarnorm_est <- tensor_mle(draws = univar_draws, model = "normal"))
 ```
 
 
-The multivariate normal draws had a mean vector of $\begin{pmatrix} 2 \\\\ 3 \end{pmatrix}$ and a covariance matrix $\begin{pmatrix} 1.25 & 1 \\\\ 1 & 1.25 \end{pmatrix}.$ 
+The multivariate normal draws had a mean vector of 
+
+$$
+\begin{pmatrix}
+  2 \\
+  3
+\end{pmatrix}
+$$
+
+and a covariance matrix 
+
+$$
+\begin{pmatrix} 
+  1.25 & 1 \\
+  1 & 1.25 \
+\end{pmatrix}.
+$$
 
 ```{r}
 (multivarnorm_est <- tensor_mle(draws = multivar_draws, model = "normal"))
 ```
 
 
-For the matrix variate draws, the mean matrix was $\begin{pmatrix} 1 & 3 & 5 \\\\ 2 & 4 & 6 \end{pmatrix}$ and the covariance matrices were the identity.
+For the matrix variate draws, the mean matrix was 
+
+$$
+\begin{pmatrix} 
+  1 & 3 & 5 \\ 
+  2 & 4 & 6 
+\end{pmatrix}
+$$ 
+
+and the covariance matrices were the identity.
 
 
 ```{r}
@@ -328,8 +351,10 @@ invgauss_est <- tensor_mle(invgauss_draws, model = "invgauss")
 For the inverse gaussian distribution, the true mean $E[X] = \tensor{M} + \tensor{A}/\kappa$. We can compare the model's estimation for the mean with the true values using MSE. 
 
 ```{r}
-mean((with(invgauss_est, mu + skew/kappa) -
-        (mu_true + skew_true/kappa_true))^2)
+avg_invgauss_est <- with(invgauss_est, mu + skew/kappa)
+avg_invgauss_true <- mu_true + skew_true/kappa_true
+
+mean((avg_invgauss_est - avg_invgauss_true)^2)
 ```
 
 
@@ -396,8 +421,8 @@ genhyper_est <- tensor_mle(genhyper_draws, model = "genhyper", quiet = FALSE, to
 
 mean((
   with(genhyper_est, mu + besselK(x = omega, nu = lambda + 1)/
-                    besselK(x = omega, nu = lambda) * skew) -
-    (mu_true + besselK(x = omega_true, nu = lambda_true + 1)/
+                          besselK(x = omega, nu = lambda) * skew) -
+                    (mu_true + besselK(x = omega_true, nu = lambda_true + 1)/
        besselK(x = omega_true, nu = lambda_true) * skew_true)
   )^2)
 
@@ -519,7 +544,7 @@ for(i in 1:3) {
 
 ## Assessing tensor variate normality
 
-We assess tensor variate normality using the Mahalanobis distance. If $\mathcal{X}$ follows an order-$O$ tensor variate normal distribution, then $\text{vec}(\mathcal{X})$ follows a multivariate normal distribution with mean $\text{vec}(\mathcal{M})$ and covariance matrix $\boldsymbol{\Sigma}_{O} \otimes \cdots \otimes \boldsymbol{\Sigma}_{1}$. This is why we can vectorize the tensor draws and compare the multivariate Mahalanobis distances to the tensor variate Mahalanobis distances. If we have properly reconstructed the structure using the MLEs $\hat{\mathcal{M}}$ and $\hat{\Sigma}_{O}, \cdots \hat{\Sigma}_{1}$, then the standardized draws should be from a standard normal. 
+We assess tensor variate normality using the Mahalanobis distance. If $\mathcal{X}$ follows an order $O$ tensor variate normal distribution, then $\text{vec}(\mathcal{X})$ follows a multivariate normal distribution with mean $\text{vec}(\mathcal{M})$ and covariance matrix $`\boldsymbol{\Sigma}_{O} \otimes \cdots \otimes \boldsymbol{\Sigma}_{1}`$. This is why we can vectorize the tensor draws and compare the multivariate Mahalanobis distances to the tensor variate Mahalanobis distances. If we have properly reconstructed the structure using the MLEs $\hat{\mathcal{M}}$ and $`\hat{\Sigma}_{O}, \cdots \hat{\Sigma}_{1}`$, then the standardized draws should be from a standard normal. 
 
 
 If a tensor normal covariance structure is present, then the multivariate and tensor variate distances should be close to one another. Following the matrix variate normality paper, this can be visualized with a distance-distance plot: when the tensor normal structure is appropriate, the distances lie close to the reference line; when the Kronecker product structure is absent, the distances diverge.
@@ -563,12 +588,16 @@ We are also interested in performing a likelihood ratio test. We are curious if 
 
 For a restriction set \(\mathcal{R} \subset \{1,\ldots,D\}\), the restricted model fixes \(\Sigma_r = I_{n_r}\) for every \(r \in \mathcal{R}\), while all other covariance matrices are estimated. The likelihood ratio test compares 
 
-$$H_0: \Sigma_r = I_{n_r} \ \forall r \in \mathcal{R} \quad \text{vs.} \quad H_A: \Sigma_r \neq I_{n_r} \ \text{for at least one } r \in \mathcal{R}.$$
+$$
+H_0: \Sigma_r = I_{n_r} \ \forall r \in \mathcal{R} \quad \text{vs.} \quad H_A: \Sigma_r \neq I_{n_r} \ \text{for at least one } r \in \mathcal{R}.
+$$
 
 The test statistic is 
 
-$$2\{\ell(\hat\theta_{\mathrm{full}}) - \ell(\hat\theta_{\mathcal{R}})\}
-\sim \chi^2_{\nu_{\mathcal{R}}}, \quad \nu_{\mathcal{R}} = \sum_{r \in \mathcal{R}} \biggl\{\frac{n_r(n_r+1)}{2} - 1\biggr\}$$
+$$
+2\{\ell(\hat\theta_{\mathrm{full}}) - \ell(\hat\theta_{\mathcal{R}})\}
+\sim \chi^2_{\nu_{\mathcal{R}}}, \quad \nu_{\mathcal{R}} = \sum_{r \in \mathcal{R}} \biggl\{\frac{n_r(n_r+1)}{2} - 1\biggr\}
+$$
 
 If the $p$-value is large, then we fail to reject the null hypothesis and conclude the restricted model fits the data as well as the unrestricted model. If the $p$-value is small, we reject the null hypothesis, which states the unrestricted model has a significantly better fit than the restricted model.
 
@@ -673,122 +702,6 @@ tibble(nu05 = unlist(rtskewt(n = 1e3, mu = matrix(0, nrow = 2, ncol = 3),
   theme_minimal()
 ```
 
-Suppose \(X_{n \times p} \sim N_{np}(0, \Sigma_1, \Sigma_2)\). A natural question is whether the usual sample covariance of the rows can estimate \(\Sigma_2\), and whether the sample covariance of the columns can estimate \(\Sigma_1\).
-
-If we compute the usual row covariance
-
-$$S_{\text{row}} = \frac{1}{n-1} X^T \biggl(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\biggr) X,$$
-
-then under the matrix normal model,
-
-$$\mathbb{E}(S_{\text{row}})
-= \frac{\mathrm{tr}\left[\left(I_n - \frac{1}{n}\mathbf{1}_n \mathbf{1}_n^T\right)\Sigma_1\right]}{n-1}\Sigma_2.$$
-
-So the usual sample covariance does recover the \emph{shape} of \(\Sigma_2\), but only up to a multiplicative constant determined by \(\Sigma_1\). The same argument with \(X^T\) shows that the usual column covariance recovers the shape of \(\Sigma_1\), but only up to a multiplicative constant determined by \(\Sigma_2\).
-
-The simulation below shows exactly that. The trace-normalized naive covariance matrices are close to the truth in all three cases, but the raw traces are distorted by the covariance matrix on the other mode.
-
-```{r}
-mse <- function(mat1, mat2) {
-  mat1_scale <- mat1/diag(mat1)
-  mat2_scale <- mat2/diag(mat2)
-  
-  mean((mat1_scale - mat2_scale)^2)
-}
-
-compare_naive_covs <- function(sigmas, n_rep = 200,
-                               n_row = 30, n_col = 4) {
-  
-  draws <- rtnorm(n = n_rep, mu = matrix(0, nrow = n_row, ncol = n_col),
-                  sigmas = sigmas)
-
-  draws_mat <- matrix(aperm(simplify2array(draws), c(1, 3, 2)), ncol = 4)
-  transpose_draws_mat <- matrix(aperm(simplify2array(draws), c(2, 1, 3)), ncol = 30)
-  
-  s2_naive <- var(draws_mat)
-  s1_naive <- var(transpose_draws_mat)
-  
-  mle_est <- tensor_mle(draws, model = "normal")
-  
-  s2_hat <- mle_est$sigmas[[2]]
-  s1_hat <- mle_est$sigmas[[1]]
-
-  tibble(name = c("s2_naive", "s1_naive", "s2_hat", "s1_hat"),
-         error = c(mse(s2_naive, sigmas[[2]]),
-                   mse(s1_naive, sigmas[[1]]),
-                   mse(s2_hat, sigmas[[2]]),
-                   mse(s1_hat, sigmas[[1]])),
-         trace_ratio = c(sum(diag(s2_naive)) / sum(diag(sigmas[[2]])),
-                         sum(diag(s1_naive)) / sum(diag(sigmas[[1]])),
-                         sum(diag(s2_hat)) / sum(diag(sigmas[[2]])),
-                         sum(diag(s1_hat)) / sum(diag(sigmas[[1]]))))
-}
-
-set.seed(123)
-
-s1 <- crossprod(matrix(rnorm(30^2), nrow = 30))
-s2 <- crossprod(matrix(rnorm(4^2), nrow = 4))
-
-rbind(
-  compare_naive_covs(list(diag(30), s2)) |> mutate(setting = "Sigma1 = I"),
-  compare_naive_covs(list(s1, diag(4))) |> mutate(setting = "Sigma2 = I"),
-  compare_naive_covs(list(s1, s2)) |> mutate(setting = "both non-identity")
-) |> View()
-```
-
-In this table, `s2_error` measures how close `var(X)` is to the shape of \(\Sigma_2\) after trace normalization, and `s1_error` does the same for `var(t(X))` and \(\Sigma_1\). The trace ratios show the scale distortion. For example, when \(\Sigma_2 = I\), the usual covariance of the rows still recovers the shape of \(\Sigma_2\) well, but its trace is inflated by a factor of about \(29\), coming from \(\Sigma_1\).
-
-- `var(X)` can estimate the shape of \(\Sigma_2\), but not its absolute scale, unless the scale contribution from \(\Sigma_1\) is fixed.
-- `var(t(X))` can estimate the shape of \(\Sigma_1\), but not its absolute scale, unless the scale contribution from \(\Sigma_2\) is fixed.
-- This is exactly why the tensor and matrix normal models need an identifying constraint such as fixing the trace of one mode covariance.
-
-
-
-
-
-
-```{r}
-make_skew <- function(dims, strength = 1) {
-  A <- array(rnorm(prod(dims)), dim = dims)
-  A / sqrt(sum(A^2)) * strength
-}
-```
-
-
-```{r}
-s1 <- crossprod(matrix(rnorm(4), nrow = 2))
-s2 <- crossprod(matrix(rnorm(9), nrow = 3))
-s3 <- crossprod(matrix(rnorm(16), nrow = 4))
-
-skew_true <- make_skew(dims = c(2, 3, 4), strength = 1.5)
-
-draws <- rtskewt(n = 1e3, mu = array(1:24, dim = c(2, 3, 4)), 
-                 sigmas = list(s1, s2, s3), skew = skew_true,
-                 nu = 40)
-
-model_compare <- function(draws) {
-  res_normal <- tensor_mle(draws, model = "normal", quiet = FALSE)
-  res_skewt <- tensor_mle(draws, model = "skewt", quiet = FALSE)
-  res_vargam <- tensor_mle(draws, model = "vargamma", quiet = FALSE)
-  res_invgauss <- tensor_mle(draws, model = "invgauss", quiet = FALSE)
-  res_genhyper <- tensor_mle(draws, model = "genhyper", quiet = FALSE)
-
-  all_mod <- 
-    tibble(model = c("Normal", "Skewt", "Vargamma", "Invgauss", "Genhyper"),
-    loglik = c(res_normal$loglik, res_skewt$loglik,
-               res_vargam$loglik, res_invgauss$loglik, res_genhyper$loglik),
-    k = c(res_normal$k, res_skewt$k,
-          res_vargam$k, res_invgauss$k, res_genhyper$k),
-    AIC = c(res_normal$AIC, res_skewt$AIC,
-            res_vargam$AIC, res_invgauss$AIC, res_genhyper$AIC),
-    BIC = c(res_normal$BIC, res_skewt$BIC,
-            res_vargam$BIC, res_invgauss$BIC, res_genhyper$BIC), 
-    mod_obj = list(res_normal, res_skewt, res_vargam, res_invgauss, res_genhyper)
-  )
-  
-  all_mod
-}
-```
 
 
 
@@ -796,6 +709,7 @@ model_compare <- function(draws) {
 
 
 Now that we have set up our tensor distributions, we can use them on a real-world example. The CIFAR 100 dataset contains images of a set of 100 common objects. In this case, we will only be using the maple trees, which have an ID value of 48.
+
 ```{r}
 library(torchvision)
 library(patchwork)
@@ -837,10 +751,56 @@ wrap_plots(lapply(maple_trees[1:20], plot_image), ncol = 5)
 
 
 We can fit the best model to this set of images. The function `model_compare()`{.R} takes in a dataset and fits all of the possible tensor models. It returns the result as a data frame with columns containing the name of the model, log likelihood, number of parameters denoted as k, AIC, BIC, and the model object itself. We can then select the model with the lowest BIC to proceed. 
-```{r}
-res <- model_compare(maple_trees)
 
-print(res)
+```{r}
+model_compare <- function(draws) {
+  res_normal <- tensor_mle(draws, model = "normal", quiet = FALSE)
+  res_skewt <- tensor_mle(draws, model = "skewt", quiet = FALSE)
+  res_vargam <- tensor_mle(draws, model = "vargamma", quiet = FALSE)
+  res_invgauss <- tensor_mle(draws, model = "invgauss", quiet = FALSE)
+  res_genhyper <- tensor_mle(draws, model = "genhyper", quiet = FALSE)
+
+  tibble(
+    model = c("Normal", "Skewt", "Vargamma", "Invgauss", "Genhyper"),
+    loglik = c(
+      res_normal$loglik,
+      res_skewt$loglik,
+      res_vargam$loglik,
+      res_invgauss$loglik,
+      res_genhyper$loglik
+    ),
+    k = c(
+      res_normal$k,
+      res_skewt$k,
+      res_vargam$k,
+      res_invgauss$k,
+      res_genhyper$k
+    ),
+    AIC = c(
+      res_normal$AIC,
+      res_skewt$AIC,
+      res_vargam$AIC,
+      res_invgauss$AIC,
+      res_genhyper$AIC
+    ),
+    BIC = c(
+      res_normal$BIC,
+      res_skewt$BIC,
+      res_vargam$BIC,
+      res_invgauss$BIC,
+      res_genhyper$BIC
+    ),
+    mod_obj = list(
+      res_normal,
+      res_skewt,
+      res_vargam,
+      res_invgauss,
+      res_genhyper
+    )
+  )
+}
+
+res <- model_compare(maple_trees)
 
 best_mod <- res$mod_obj[[which.min(res$BIC)]]
 ```
@@ -927,7 +887,7 @@ wrap_plots(lapply(maple_trees[which(all_lik >= 9000)], plot_image),
 #   
 #   best_mod <- curr_model$mod_obj[[which.min(curr_model$BIC)]]
 #   
-#   best_models[[class]] <- best_mod
+#   best_models[[class]] <- best_mod`
 # }
 # 
 # View(best_models)
