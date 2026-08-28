@@ -1,0 +1,30 @@
+---
+title: "EM_MLE_Derivation"
+format: pdf
+editor: visual
+---
+
+This document will detail the derivations required for the MLEs of all of the tensor variate distributions.
+
+## Tensor Variate Skewed Distribution
+
+In the tensor variate case, the normal variance mean mixture model is an efficient way to introduce skewness. A random tensor $\tensor{X}$ can be written as
+
+$$\tensor{X}_{i} = \tensor{M} + W_{i} \tensor{A} + \sqrt{W_{i}} \tensor{V}_{i}$$
+
+where $\tensor{M}$ is a location tensor, $\tensor{A}$ is a skewness tensor, $\tensor{V} \sim \mathcal{N}_{n^*}(\mathbb{O}, \bigotimes_{d=1}^{D} \Sigma_{d})$ and $W > 0$ is a positive random variable. The distribution of $\tensor{X}$ will depend on the distribution of $W$.
+
+
+We are interested in obtaining the MLEs of the distribution $X$. 
+
+If we knew the latent values $W_{i}$, then the distribution of $X_{i}$ would be normal.
+
+$$X_{i} | W_{i} = w_{i} \sim N_{p}(W_{i} A, W_{i} \otimes_{i=1}^k \Sigma_{k})$$
+
+Let the distribution of $w$ be represented as $h(w)$. Then the joint density can be written as
+
+$$f(X_{i}, W_{i}; \theta) = f(X_{i}|w_{i}) f(w_{i}).$$
+
+Thus, we can represent the joint distribution as a product of the tensor variate normal PDF and the PDF of $W$. 
+
+
