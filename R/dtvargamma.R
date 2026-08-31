@@ -96,7 +96,7 @@ dtvargamma <- function(x, mu, skew, sigmas, scale, log = FALSE) {
 
     loglik <-
       log(2) + scale * log(scale) - (n_star)/2 * log(2 * pi) - all_det -
-      log(gamma(scale)) + xm_skew +
+      lgamma(scale) + xm_skew +
       (scale - (n_star/2))/2 * log(delta/(rho + 2 * scale)) +
       log_bessel - y
 

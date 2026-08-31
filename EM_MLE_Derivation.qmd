@@ -2,6 +2,35 @@
 title: "EM_MLE_Derivation"
 format: pdf
 editor: visual
+header-includes: 
+  - |
+    \AtBeginDocument{
+      \renewcommand{\r}[1]{\textcolor{red}{#1}}
+      \renewcommand{\b}[1]{\textcolor{blue}{#1}}
+    }
+  - \usepackage{xcolor}
+  - \usepackage{algorithm}
+  - \usepackage{algpseudocode}
+  - \usepackage{mathtools}
+  - \usepackage{float}
+  - \newcommand{\coleq}{\mathrel{\mathop:}=}
+  - \newcommand{\ve}[1]{\textbf{#1}}
+  - \newcommand{\field}[1]{\mathbb{#1}}
+  - \newcommand{\defn}[1]{\emph{#1}}
+  - \newcommand{\oneVect}[1]{#1}
+  - \newcommand{\mat}[1]{\textbf{#1}}
+  - \newcommand{\oneMat}[1]{#1}
+  - \newcommand{\tensor}[1]{\mathcal{#1}}
+  - \newcommand{\oneTensor}[1]{#1} 
+  - \newcommand{\vs}[1]{\mathcal{#1}}
+  #- \newcommand{\mn}[1]{{#1} \choose {#2}}
+  #- \newcommand{\mn}[2]{\mathrel{\underset{\scriptstyle {#1}\,{#2}}{\times}}}
+  #- \newcommand{\mn}[2]{\underset{\scriptsize\color{red}{#1}\,\color{blue}{#2}}{\times}}
+  #- \newcommand{\mn}[2]{\mathbb{#1}}
+  #- \newcommand{\mn}[2]{\sideset{_{\color{red}{#1}}}{_{\color{blue}{#2}}}{\boldsymbol{\times}}}
+  - \newcommand{\mn}[2]{\sideset{_{#1}}{_{#2}}{\mathop{\boldsymbol{\times}}}}
+  - \newtheorem{proposition}{Proposition}[section]
+  - \newtheorem{proof}{Proof}[section]
 ---
 
 This document will detail the derivations required for the MLEs of all of the tensor variate distributions.
@@ -14,8 +43,7 @@ $$\tensor{X}_{i} = \tensor{M} + W_{i} \tensor{A} + \sqrt{W_{i}} \tensor{V}_{i}$$
 
 where $\tensor{M}$ is a location tensor, $\tensor{A}$ is a skewness tensor, $\tensor{V} \sim \mathcal{N}_{n^*}(\mathbb{O}, \bigotimes_{d=1}^{D} \Sigma_{d})$ and $W > 0$ is a positive random variable. The distribution of $\tensor{X}$ will depend on the distribution of $W$.
 
-
-We are interested in obtaining the MLEs of the distribution $X$. 
+We are interested in obtaining the MLEs of the distribution $X$.
 
 If we knew the latent values $W_{i}$, then the distribution of $X_{i}$ would be normal.
 
@@ -25,6 +53,4 @@ Let the distribution of $w$ be represented as $h(w)$. Then the joint density can
 
 $$f(X_{i}, W_{i}; \theta) = f(X_{i}|w_{i}) f(w_{i}).$$
 
-Thus, we can represent the joint distribution as a product of the tensor variate normal PDF and the PDF of $W$. 
-
-
+Thus, we can represent the joint distribution as a product of the tensor variate normal PDF and the PDF of $W$.
