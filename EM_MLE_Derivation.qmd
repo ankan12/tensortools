@@ -35,6 +35,35 @@ header-includes:
 
 This document will detail the derivations required for the MLEs of all of the tensor variate distributions.
 
+## Univariate Generalized Hyperbolic 
+
+First, consider the simpler case where $X$ is generated from a generalized hyperbolic distribution. Under the Barndorff-Nielsen construction, we can create these draws using 
+
+$$X = \mu + W \alpha + \sqrt{W} Z$$ 
+
+where $\mu$ is a vector, $\alpha$ is a vector, $Z \sim N(0, \Sigma)$. The distribution of $W$ is what determines the distribution of $X$. In this case, let $W$ be from the generalized inverse Gaussian distribution denoted as $W \sim \text{GIG}(a, b, \lambda)$.
+
+Thus, the density function of $W$ is 
+
+$$f(w|a, b, \lambda) = \frac{(\frac{a}{b})^{\lambda/2} w^{\lambda - 1}}{2 K_{\lambda}(\sqrt{ab})} \exp\left\{\frac{-1}{2} \left(aw + \frac{b}{w}\right)\right\}$$
+
+where 
+
+$$K_{\lambda}(x) = \frac{1}{2} \int_{0}^{\infty} y^{\lambda - 1} \exp\left\{\frac{-x}{2}\left(y + \frac{1}{y}\right)\right\} dy$$
+
+is the modified Bessel function of the third kind. 
+
+We are interested in computing the MLEs of this function given draws. Thus, we want to rewrite this data in terms of only the random draws $x$. 
+
+Consider again the construction used to create $X$. We can easily define the distribution of $f(X|w)$. If we knew the underlying latent draw $w$, then $f(X|w) \sim N(\mu + w \alpha, w \Sigma)$. We also know the distribution of $W$. 
+
+$$
+\begin{aligned}
+f(x) &= \int f(x|w) f(w) dw \\ 
+&= \int (2\pi)^{-k/2} \det(w \Sigma)^{-1/2} \exp\left(\frac{-1}{2} (x - \mu - w\alpha)^{T} w \Sigma^{-1} (x - \mu - w\alpha)\right) dw
+\end{aligned}
+$$
+
 ## Tensor Variate Skewed Distribution
 
 In the tensor variate case, the normal variance mean mixture model is an efficient way to introduce skewness. A random tensor $\tensor{X}$ can be written as
@@ -54,3 +83,5 @@ Let the distribution of $w$ be represented as $h(w)$. Then the joint density can
 $$f(X_{i}, W_{i}; \theta) = f(X_{i}|w_{i}) f(w_{i}).$$
 
 Thus, we can represent the joint distribution as a product of the tensor variate normal PDF and the PDF of $W$.
+
+
