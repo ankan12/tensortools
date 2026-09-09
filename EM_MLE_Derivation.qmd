@@ -37,13 +37,13 @@ This document will detail the derivations required for the MLEs of all of the te
 
 ## General Normal Variance-Mean Mixture
 
-First, consider the generic structure where $X$ is generated from a normal variance-mean mixture. Under the Barndorff-Nielsen construction, we can create these draws using 
+First, consider the generic structure where $X$ is generated from a normal variance-mean mixture. Under the Barndorff-Nielsen construction, we can create these draws using
 
-$$X = \mu + W \alpha + \sqrt{W} Z$$ 
+$$X = \mu + W \alpha + \sqrt{W} Z$$
 
-where $\mu$ is a vector, $\alpha$ is a vector, $Z \sim N(0, \Sigma)$. The distribution of $W$ is what determines the distribution of $X$. 
+where $\mu$ is a vector, $\alpha$ is a vector, $Z \sim N(0, \Sigma)$. The distribution of $W$ is what determines the distribution of $X$.
 
-Consider again the construction used to create $X$. If we knew the underlying latent draw $w$, then $X|W = w \sim N(\mu + w \alpha, w \Sigma)$. 
+Consider again the construction used to create $X$. If we knew the underlying latent draw $w$, then $X|W = w \sim N(\mu + w \alpha, w \Sigma)$.
 
 $$
 \begin{aligned}
@@ -60,9 +60,7 @@ Now we want to use the following property:
 
 $$
 \int_{0}^{\infty} w^{\lambda - 1} \exp\left\{\frac{-1}{2} bw^{-1} - \frac{1}{2} aw \right\} dw = 2 \left(\frac{b}{a}\right)^{\lambda/2} K_{\lambda}(\sqrt{ab})
-$$
-{#eq-integrate}
-
+$$ {#eq-integrate}
 
 Depending on the distribution of $w$, denoted by $f_{W}(w)$, we can obtain different results for the function after integrating out the dependence on $w$.
 
@@ -70,11 +68,11 @@ Depending on the distribution of $w$, denoted by $f_{W}(w)$, we can obtain diffe
 
 In this case, let $W$ be from the generalized inverse Gaussian distribution denoted as $W \sim \text{GIG}(a, b, \lambda)$.
 
-Thus, the density function of $W$ where $w > 0$ is 
+Thus, the density function of $W$ where $w > 0$ is
 
 $$f_{W}(w|a, b, \lambda) = \frac{(\frac{a}{b})^{\lambda/2} w^{\lambda - 1}}{2 K_{\lambda}(\sqrt{ab})} \exp\left\{\frac{-1}{2} \left(aw + \frac{b}{w}\right)\right\}$$
 
-where 
+where
 
 $$K_{\lambda}(x) = \frac{1}{2} \int_{0}^{\infty} y^{\lambda - 1} \exp\left\{\frac{-x}{2}\left(y + \frac{1}{y}\right)\right\} dy$$
 
@@ -102,12 +100,69 @@ f_{X}(x) &= (2\pi)^{-k/2} \det(\Sigma)^{-1/2} \exp\left\{\alpha^{T} \Sigma^{-1} 
 \end{aligned}
 $$
 
-
 This defines the generalized hyperbolic distribution. Thus, $X \sim GH(\mu, \Sigma, \alpha, a, b, \lambda)$.
 
 ### Conditional Distribution of $W$
 
-Now we have the probability distribution functions for $X, X|W$, and $W$. For use in the EM algorithm, we are also interested in $W|X$. 
+Now we have the probability density functions for $X, X|W$, and $W$. For use in the EM algorithm, we are also interested in $W|X$.
+
+We can use Bayes' theorem to find it.
+
+$$
+\begin{aligned}
+f_{W|X}(w|x) &= \frac{f_{X|W}(x|w) f_{W}(w)}{f_{X}(x)} \\
+& \propto f_{X|W}(x|w) f_{W}(w) \\
+& \propto (2\pi)^{-k/2} \det(w \Sigma)^{-1/2} \exp\left\{\frac{-1}{2} (x - \mu - w\alpha)^{T} (w \Sigma)^{-1} (x - \mu - w\alpha)\right\} \\
+& \quad \frac{(\frac{a}{b})^{\lambda/2} w^{\lambda - 1}}{2 K_{\lambda}(\sqrt{ab})} \exp\left\{\frac{-1}{2} \left(aw + \frac{b}{w}\right)\right\} \\
+& \propto w^{\lambda - k/2 - 1} \exp\left\{\frac{-1}{2} \left[(x - \mu - w\alpha)^{T} (w \Sigma)^{-1} (x - \mu - w\alpha) + \left(aw + \frac{b}{w}\right)\right]\right\} \\
+& \propto w^{\lambda - k/2 - 1} \exp \left\{\frac{-1}{2w} \left[(x-\mu)^{T} \Sigma^{-1} (x-\mu) - 2 w \alpha^{T} \Sigma^{-1} (x-\mu) + w^{2} \alpha^{T} \Sigma^{-1} \alpha \right] - \frac{1}{2} \left[aw + \frac{b}{w}\right]\right\} \\
+& \propto w^{\lambda - k/2 - 1} \exp \left\{-\frac{(x-\mu)^{T} \Sigma^{-1} (x-\mu)}{2w} + \alpha^{T} \Sigma^{-1} (x-\mu) - \frac{w \alpha^{T} \Sigma^{-1}}{2} \alpha - \frac{1}{2} \left[aw + \frac{b}{w}\right]\right\} \\
+& \propto w^{\lambda - k/2 - 1} \exp \left\{-\frac{(x-\mu)^{T} \Sigma^{-1} (x-\mu) + b}{2w} - \frac{w(\alpha^{T} \Sigma^{-1} \alpha + a)}{2} \right\}
+\end{aligned}
+$$
+
+This is the kernel of GIG($\alpha^{T} \Sigma^{-1} \alpha + a, (x-\mu)^{T} \Sigma^{-1} (x-\mu) + b, \lambda - k/2$). Thus, $W|X$ has that distribution.
+
+### Expectation Step
+
+In the expectation step, we find the conditional distribution of $W$ given the observed data $X$ and the current parameter estimates $\theta^{t}$. We use this to calculate the conditional expectations needed in the complete data log-likelihood. We want to compute $Q(\theta | \theta^{(t)}) = E_{\theta^{(t)}}[\ell(\theta; X, W)|X]$.
+
+$$
+\begin{aligned}
+\ell(\theta; X, W) &= \left\{\sum_{i=1}^{N} \log f_{X|W}(x_{i}|w_{i}, \theta) + \log f_{W} (w_{i}, \theta) \right\}\\
+&= \sum_{i=1}^{N} \bigg\{-\frac{k}{2} \log(2\pi) - \frac{1}{2} \log \det(\Sigma) - \frac{k}{2} \log(w_{i}) - \frac{1}{2} (x_{i} - \mu - w_{i} \alpha)^{T} (w_{i} \Sigma)^{-1} (x_{i} - \mu - w_{i} \alpha) + \\
+& \frac{\lambda}{2} \log \left(\frac{a}{b}\right) + (\lambda - 1) \log(w_{i}) - \log(2 K_{\lambda}(\sqrt{ab})) - \frac{1}{2} \left(a w_{i} + \frac{b}{w_{i}}\right)\bigg\} \\
+\end{aligned}
+$$
+
+In the expectation step, we need to replace the functions of the unobserved $w_{i}$ with their conditional expectations given $X_{i} = x_{i}$. Thus, for each observation $x_{i}$, we need to compute $E[W_{i}|X_{i} = x_{i}, \theta^{(t)}], E[W_{i}^{-1}|X_{i} = x_{i}, \theta^{(t)}]$ and $E[\log W_{i}|X_{i} = x_{i}, \theta^{(t)}]$.
+
+Earlier, we defined the distribution of $W|X$. Let $a^{*} = \alpha^{T} \Sigma^{-1} \alpha + a, b_{i}^{*} = (x_{i}-\mu)^{T} \Sigma^{-1} (x_{i}-\mu) + b$ and $\lambda^{*} = \lambda - k/2$. Then the expectations are as follows: 
+
+$$
+\begin{aligned}
+E[W_{i}] &= \frac{\sqrt{b_{i}^{*}} K_{\lambda^{*} + 1}(\sqrt{a^{*} b_{i}^{*}})}{\sqrt{a^{*}} K_{\lambda^{*}}(\sqrt{a^{*} b_{i}^{*}})} \\
+E[W_{i}^{-1}] &= \frac{\sqrt{a^{*}} K_{\lambda^{*} + 1}(\sqrt{a^{*} b_{i}^{*}})}{\sqrt{b_{i}^{*}} K_{\lambda^{*}}(\sqrt{a^{*} b_{i}^{*}})} - \frac{2 \lambda^{*}}{b_{i}^{*}} \\
+E[\log W_{i}] &= \log\left(\frac{\sqrt{b_{i}^{*}}}{\sqrt{a^{*}}}\right) + \frac{\partial}{\partial \lambda^{*}} \log K_{\lambda^{*}}(\sqrt{a^{*} b_{i}^{*}})
+\end{aligned}
+$$
+ 
+### Maximization Step
+
+In the maximization step, we use the conditional expectations as fixed values substituted into the complete data log-likelihood. We then maximize this function to obtain the updated parameter estimates $\theta^{(t+1)}$. 
+
+For ease of notation, let $s_{i}^{(t)} = E(W_{i}), $u_{i}^{(t)} = E(W_{i}^{-1})$ and $v_{i}^{(t)} = E(\log W_{i})$.
+
+Then, our complete data log-likelihood can be written as 
+
+$$
+\begin{aligned}
+\ell(\theta; X, W) &= \sum_{i=1}^{N} \bigg\{-\frac{k}{2} \log(2\pi) - \frac{1}{2} \log \det(\Sigma) - \frac{k}{2} \log(w_{i}) - \frac{1}{2} (x_{i} - \mu - w_{i} \alpha)^{T} (w_{i} \Sigma)^{-1} (x_{i} - \mu - w_{i} \alpha) + \\
+& \frac{\lambda}{2} \log \left(\frac{a}{b}\right) + (\lambda - 1) \log(w_{i}) - \log(2 K_{\lambda}(\sqrt{ab})) - \frac{1}{2} \left(a w_{i} + \frac{b}{w_{i}}\right)\bigg\} \\
+&= \bigg\{-\frac{k}{2} \log(2\pi) - \frac{1}{2} \log \det(\Sigma) - \frac{k}{2} \log(w_{i}) - \frac{1}{2} (x_{i} - \mu - w_{i} \alpha)^{T} (w_{i} \Sigma)^{-1} (x_{i} - \mu - w_{i} \alpha) + \\
+& \frac{\lambda}{2} \log \left(\frac{a}{b}\right) + (\lambda - 1) \log(w_{i}) - \log(2 K_{\lambda}(\sqrt{ab})) - \frac{1}{2} \left(a w_{i} + \frac{b}{w_{i}}\right)\bigg\}
+\end{aligned} 
+$$
 
 ## Tensor Variate Skewed Distribution
 
@@ -128,5 +183,3 @@ Let the distribution of $w$ be represented as $h(w)$. Then the joint density can
 $$f(X_{i}, W_{i}; \theta) = f(X_{i}|w_{i}) f(w_{i}).$$
 
 Thus, we can represent the joint distribution as a product of the tensor variate normal PDF and the PDF of $W$.
-
-

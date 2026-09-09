@@ -889,12 +889,13 @@ for (i in seq_len(nrow(cell_means))) {
 
 obs <- as_tensor(obs_array, obs = 4)
 
-
 save(obs, file = "obs.Rdata")
 ```
 
 
 ```{r}
+load("obs.Rdata")
+
 fits <- list(
   tensor = tensor_mle(
     obs,
@@ -925,6 +926,24 @@ tibble(
   k = map_dbl(fits, "k")
 ) |>
   arrange(BIC)
+```
+
+```{r}
+fits$tensor$sigmas[[1]] |> 
+  cov2cor() |> 
+  plot_matrix()
+
+fits$tensor$sigmas[[2]] |> 
+  cov2cor() |> 
+  plot_matrix()
+
+fits$tensor$sigmas[[3]] |> 
+  cov2cor() |> 
+  plot_matrix()
+
+fits$tensor$sigmas[[4s]] |> 
+  cov2cor() |> 
+  plot_matrix()
 ```
 
 
