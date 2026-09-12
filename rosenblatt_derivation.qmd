@@ -15,19 +15,20 @@ format: html
 \newcommand{\vs}[1]{\mathcal{#1}}
 \newcommand{\mn}[2]{\sideset{_{#1}}{_{#2}}{\mathop{\boldsymbol{\times}}}}
 
-# Rosenblatt transformation for a normal distribution
-
-This section derives the Rosenblatt transformation first for a simple
-multivariate normal random vector and then for a tensor-variate normal random
-variable. The tensor result is the same normal calculation applied using the
-Kronecker-structured tensor covariance.
+```{R, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(tensortools)
+library(invgamma)
+```
 
 ## Rosenblatt transformation
+
+The Rosenblatt transformation is the multivariate extension of the probability integral transformation. It applies the conditional CDF of each element given the elements before it. This removes the modeled dependence sequentially. If the proposed joint distribution is correct, the resulting transformed data are independent Uniform(0, 1) random variables.
 
 Let
 
 $$
-X=(X_1,\ldots,X_p)^\top
+X=(X_1,\ldots,X_p)^{T}
 $$
 
 be a continuous random vector with joint distribution function $F(x_1, \dots, x_k)$. 
@@ -48,381 +49,18 @@ If the assumed joint distribution is correct and its parameters are known,
 then
 
 $$
-U_1,\ldots,U_p \stackrel{\mathrm{ind}}{\sim} \operatorname{Uniform}(0,1).
+U_1,\ldots,U_p \stackrel{\mathrm{ind}}{\sim} \text{Uniform}(0,1).
 $$
 
 Each random variable is transformed using its distribution conditional on all the random variables that came before it.
 
-## Bivariate normal example
-
-Suppose
-
-$$
-\begin{pmatrix}X_1\\X_2\end{pmatrix} \sim N_2\left[\begin{pmatrix}\mu_1\\\mu_2\end{pmatrix},
-\begin{pmatrix}
-\sigma_1^2 & \rho \sigma_1 \sigma_2\\
-\rho\sigma_1\sigma_2 & \sigma_2^2
-\end{pmatrix}
-\right].
-$$
-
-### Step 2.1: Transform $X_1$
-
-The marginal distribution of the first coordinate is
-
-$$
-X_1\sim N(\mu_1,\sigma_1^2).
-$$
-
-Therefore,
-
-$$
-Z_1=\frac{X_1-\mu_1}{\sigma_1}
-$$
-
-is standard normal, and the first Rosenblatt coordinate is
-
-$$
-U_1 = F_{X_1}(X_1) =\Phi\left(\frac{X_1-\mu_1}{\sigma_1}\right) =\Phi(Z_1).
-$$
-
-### Step 2.2: Transform $X_2$
-
-For a bivariate normal distribution,
-
-$$
-X_2\mid X_1=x_1 \sim N\left(\mu_2+\rho\frac{\sigma_2}{\sigma_1}(x_1-\mu_1), \ \sigma_2^ (1-\rho^2) \right).
-$$
-
-After subtracting the conditional mean and dividing by the conditional
-standard deviation, we obtain
-
-$$
-Z_2 = \frac{X_2-\mu_2-\rho(\sigma_2/\sigma_1)(X_1-\mu_1)}{\sigma_2\sqrt{1-\rho^2}}.
-$$
-
-Conditional on $X_1$, this quantity is standard normal. Thus the second Rosenblatt transformation is
-
-$$
-\begin{aligned}
-U_2 &=F_{X_2\mid X_1}(X_2\mid X_1)\\
-&=\Phi\left[\frac{X_2-\mu_2-\rho(\sigma_2/\sigma_1)(X_1-\mu_1)}{\sigma_2\sqrt{1-\rho^2}} \right]\\
-&=\Phi(Z_2).
-\end{aligned}
-$$
-
-Under the assumed bivariate normal model, $Z_1$ and $Z_2$ are independent
-standard normal variables. Consequently, $U_1$ and $U_2$ are independent
-uniform variables.
-
-## 3. Write the same calculation using a Cholesky factor
-
-Now let
-
-$$
-X\sim N_p(\mu,\Sigma),
-$$
-
-where $\Sigma$ is positive definite. Let
-
-$$
-\Sigma=LL^\top
-$$
-
-be its lower-triangular Cholesky decomposition. The lower-triangular form is
-important because the $j$-th transformed variable depends only on $X_1, \dots, X_j$, matching the sequential conditioning used by the
-Rosenblatt transformation.
-
-Define the standardization as 
-
-$$
-Z=L^{-1}(X-\mu).
-$$
-Equivalently,
-
-$$
-X=\mu+LZ, \qquad Z\sim N_p(0,I_p).
-$$
-
-Because $L$ is lower triangular, the first few coordinates of $X$ satisfy
-
-$$
-\begin{aligned}
-X_1 &=\mu_1+L_{11}Z_1,\\
-X_2 &=\mu_2+L_{21}Z_1+L_{22}Z_2,\\
-X_3 &=\mu_3+L_{31}Z_1+L_{32}Z_2+L_{33}Z_3.
-\end{aligned}
-$$
-
-More generally,
-
-$$
-X_j = \mu_j + \sum_{k=1}^{j-1}L_{jk}Z_k + L_{jj}Z_j.
-$$
-
-### Step 3.1: Condition on the preceding coordinates
-
-Once $X_1,\ldots,X_{j-1}$ have been observed, the corresponding values
-$Z_1,\ldots,Z_{j-1}$ are known from forward substitution. Therefore,
-
-$$
-X_j\mid X_1,\ldots,X_{j-1}
-\sim
-N\left(
-\mu_j+\sum_{k=1}^{j-1}L_{jk}Z_k,
-L_{jj}^2
-\right).
-$$
-
-### Step 3.2: Standardize using that conditional distribution
-
-The conditional standardized value is
-
-$$
-Z_{j} = \frac{X_j-\mu_j-\sum_{k=1}^{j-1}L_{jk}Z_k }{L_{jj}}.
-$$
-
-It follows that the $j$-th Rosenblatt coordinate is simply
-
-$$
-\boxed{U_j=\Phi(Z_j)},
-\qquad
-Z=L^{-1}(X-\mu).
-$$
-
-Thus the complete normal Rosenblatt transformation can be summarized as
-
-$$
-\boxed{U=\Phi{L^{-1}(X-\mu)}}
-$$
-
-where $\Phi$ is applied separately to every coordinate.
-
-This is not just arbitrary whitening. Using the lower-triangular Cholesky factor makes each $Z_j$ exactly the standardized residual from the conditional distribution of $X_j$ given the preceding coordinates.
-
-# Rosenblatt transformation for a tensor-variate normal distribution
-
-## 4. Specify the tensor-normal model
-
-Let $\mathcal X$ be a $D$-way tensor with dimensions
-$p_1\times\cdots\times p_D$. Suppose
-
-$$
-\mathcal X
-\sim
-\operatorname{TVN}
-(\mathcal M,\Sigma_1,\ldots,\Sigma_D),
-$$
-
-where $\mathcal M$ is the mean tensor and $\Sigma_d$ describes covariance
-along tensor mode $d$.
-
-Let
-
-$$
-x=\operatorname{vec}(\mathcal X),
-\qquad
-\mu=\operatorname{vec}(\mathcal M).
-$$
-
-Using the usual column-major vectorization convention,
-
-$$
-x
-\sim
-N_p(\mu,\Sigma),
-\qquad
-p=\prod_{d=1}^D p_d,
-$$
-
-with
-
-$$
-\Sigma
-=
-\Sigma_D\otimes\cdots\otimes\Sigma_1.
-$$
-
-This equation is where the complete tensor covariance structure enters the
-Rosenblatt transformation.
-
-## 5. Obtain the tensor-normal Cholesky factor
-
-For each mode, take the lower-triangular Cholesky decomposition
-
-$$
-\Sigma_d=L_dL_d^\top.
-$$
-
-Define
-
-$$
-L=L_D\otimes\cdots\otimes L_1.
-$$
-
-Using the Kronecker-product identity
-
-$$
-(A\otimes B)(C\otimes D)=(AC)\otimes(BD),
-$$
-
-we have
-
-$$
-\begin{aligned}
-LL^\top
-&=(L_D\otimes\cdots\otimes L_1)
-  (L_D^\top\otimes\cdots\otimes L_1^\top)\\
-&=(L_DL_D^\top)\otimes\cdots\otimes(L_1L_1^\top)\\
-&=\Sigma_D\otimes\cdots\otimes\Sigma_1\\
-&=\Sigma.
-\end{aligned}
-$$
-
-Therefore, $L$ is the lower-triangular Cholesky factor of the full vectorized
-tensor covariance.
-
-## 6. Standardize the tensor observation
-
-Define
-
-$$
-z
-=
-L^{-1}(x-\mu).
-$$
-
-Under the tensor-normal model,
-
-$$
-z\sim N_p(0,I_p),
-$$
-
-so its coordinates are independent standard normal variables. The tensor-normal
-Rosenblatt values are therefore
-
-$$
-\boxed{
-u_j=\Phi(z_j),
-\qquad j=1,\ldots,p.
-}
-$$
-
-Equivalently, all steps can be written together as
-
-$$
-\boxed{
-u
-=
-\Phi\left[
-(L_D\otimes\cdots\otimes L_1)^{-1}
-\left{
-\operatorname{vec}(\mathcal X)-
-\operatorname{vec}(\mathcal M)
-\right}
-\right].
-}
-$$
-
-## 7. Equivalent mode-by-mode tensor calculation
-
-The same standardization can be performed without explicitly constructing the
-large Kronecker product. Let
-
-$$
-\mathcal E=\mathcal X-\mathcal M.
-$$
-
-Then whiten the residual tensor along every mode:
-
-$$
-\mathcal Z
-=
-\mathcal E
-\times_1 L_1^{-1}
-\times_2 L_2^{-1}
-\cdots
-\times_D L_D^{-1},
-$$
-
-where $\times_d$ denotes multiplication along mode $d$. With compatible
-vectorization and mode-product conventions,
-
-$$
-\operatorname{vec}(\mathcal Z)
-=
-(L_D\otimes\cdots\otimes L_1)^{-1}
-\operatorname{vec}(\mathcal E)
-=z.
-$$
-
-Finally, apply $\Phi$ element by element:
-
-$$
-\mathcal U=\Phi(\mathcal Z).
-$$
-
-This mode-by-mode form uses all of the tensor covariance matrices while
-avoiding construction of a potentially very large full covariance matrix.
-
-## 8. What should be observed under a correct model?
-
-For each tensor observation, the derivation produces
-
-$$
-u_1,\ldots,u_p.
-$$
-
-If the tensor-normal model and its parameters are correct, then these values
-should be
-
-$$
-u_1,\ldots,u_p
-\stackrel{\mathrm{ind}}{\sim}
-\operatorname{Uniform}(0,1).
-$$
-
-A diagnostic can therefore examine:
-
-1. **Uniformity:** histograms, uniform Q--Q plots, or a uniformity statistic;
-2. **Independence within a tensor:** correlations or other dependence measures
-   among the transformed coordinates; and
-3. **Independence across observations:** dependence among transformed values
-   from different independently sampled tensors.
-
-When $\mathcal M$ and the covariance matrices are replaced by estimates from
-the same data, the transformed values are not exactly independent uniforms in
-finite samples. A formal goodness-of-fit test therefore needs fitted-parameter
-calibration, such as a score-adjusted multiplier calibration or a parametric
-bootstrap that repeats both model fitting and transformation.
-
-## 9. Summary of the calculation
-
-For one tensor observation:
-
-1. Subtract the fitted or known mean tensor:
-   $\mathcal E=\mathcal X-\mathcal M$.
-2. Compute a lower Cholesky factor $L_d$ for every mode covariance
-   $\Sigma_d$.
-3. Whiten $\mathcal E$ along all modes to obtain $\mathcal Z$.
-4. Vectorize $\mathcal Z$ in the same order used by the model.
-5. Apply the univariate standard-normal CDF to every entry:
-   $u_j=\Phi(z_j)$.
-6. Under the correct model with known parameters, the resulting values are
-   independent $\operatorname{Uniform}(0,1)$ variables.
-
-
-# Rosenblatt transformation for skewed tensor-variate distributions
-
-## 10. Normal variance--mean mixture representation
+## Skewed tensor variate distributions 
 
 The tensor skew-$t$, variance-gamma, inverse-Gaussian, and generalized
 hyperbolic distributions implemented in `tensortools` share the representation
 
 $$
-\mathcal X
-=
-\mathcal M+W\mathcal A+\sqrt{W}\,\mathcal Z,
+\mathcal X = \mathcal M + W\mathcal A+ \sqrt{W}\,\mathcal Z,
 $$
 
 where $\mathcal A$ is the skew tensor, $W$ is a positive scalar mixing
@@ -435,359 +73,260 @@ $$
 
 is independent of $W$. Conditional on $W=w$,
 
+$$X \sim N(\mathcal{M} + w \mathcal{A}, w [\Sigma_{D} \otimes \dots \Sigma_{1}])$$
+
+## Univariate Skewed-t 
+
+Take $X = \mu + W A + \sigma \sqrt{W} Z, \quad Z \sim N(0, 1)$ where $W > 0$ is a latent mixing variable. Conditional on $W = w, X|W = w \sim N(\mu + wa, w \sigma^2)$. That is, if we knew the value $w$ of the latent mixing variable, $X$ would follow a normal distribution with mean $\mu + w a$ and variance $w \sigma^{2}$. 
+
+In the univariate case, the Rosenblatt transformation is the same as the probability integral transform. 
+
+First, we can obtain the marginal CDF of $X$ by integrating out the dependence on $W$.  
 $$
-\operatorname{vec}(\mathcal X)\mid W=w
-\sim
-N_p\left(
-\operatorname{vec}(\mathcal M)+w\operatorname{vec}(\mathcal A),
-w(\Sigma_D\otimes\cdots\otimes\Sigma_1)
-\right).
-$$
+\begin{aligned}
+F_{X}(x) &= P(X \le x) \\ 
+&= \int_{0}^{\infty} P(X \le x|W = w) f_{W}(w) dw \\
+&= \int_{0}^{\infty} f_{X|W}(x|w) f_W(w) dw \\
+&= \int_{0}^{\infty} \Phi\left(\frac{x-\mu-wa}{\sigma \sqrt{w}}\right) f_W(w) dw
+\end{aligned}
+$$ 
 
-Thus the distribution is normal when $W$ is known, but it is skewed and
-heavy-tailed after $W$ is integrated out. The same $W$ is shared by every
-entry of one tensor observation, which also creates dependence among entries.
 
-## 11. Whiten the location and skew tensors
+Then, we can apply this CDF to the draws. If the model is correct, $U \sim \text{Uniform}(0, 1)$. 
 
-Let $\Sigma_d=L_dL_d^\top$ and apply the same modewise whitening used for the
-tensor-normal model:
+```{r}
+nu <- 4 # generate univariate values
+mu <- 1
+variance <- 2
+skew <- 3
 
-$$
-\mathcal Y
-=
-(\mathcal X-\mathcal M)
-\times_1L_1^{-1}\cdots\times_DL_D^{-1},
-$$
+univar_skewt <- rtskewt(n = 1e4, mu = mu, sigmas = list(matrix(variance)), 
+                        skew = skew, nu = nu)
 
-and whiten the skew tensor in the same way:
-
-$$
-\mathcal B
-=
-\mathcal A
-\times_1L_1^{-1}\cdots\times_DL_D^{-1}.
-$$
-
-After vectorizing in R's column-major order, write
-
-$$
-y=\operatorname{vec}(\mathcal Y),
-\qquad
-b=\operatorname{vec}(\mathcal B).
-$$
-
-The whitened coordinates satisfy
-
-$$
-Y_j\mid W=w\sim N(wb_j,w),
-$$
-
-and they are conditionally independent given $W$. They are not marginally
-independent because they share the same unobserved mixing variable.
-
-Consequently, applying $\Phi(Y_j)$ is not a valid Rosenblatt transformation.
-Instead, each coordinate must use its distribution conditional on all
-previous coordinates, with uncertainty about $W$ integrated out.
-
-## 12. Initial GIG mixing distributions
-
-All four mixing distributions can be represented as generalized inverse
-Gaussian distributions or their boundary cases. Using
-
-$$
-W\sim\operatorname{GIG}(\lambda,\chi,\psi),
-$$
-
-with density kernel
-
-$$
-f(w)\propto
-w^{\lambda-1}
-\exp\left\{-\frac12\left(\frac{\chi}{w}+\psi w\right)\right\},
-\qquad w>0,
-$$
-
-the starting parameters used by `tensor_rosenblatt()` are:
-
-| Tensor distribution | Initial $\lambda_0$ | Initial $\chi_0$ | Initial $\psi_0$ |
-|:--|--:|--:|--:|
-| Skew-$t$ | $-\nu/2$ | $\nu$ | $0$ |
-| Variance-gamma | $\gamma$ | $0$ | $2\gamma$ |
-| Inverse-Gaussian | $-1/2$ | $1$ | $\kappa^2$ |
-| Generalized hyperbolic | $\lambda$ | $\omega$ | $\omega$ |
-
-The skew-$t$ boundary is an inverse-gamma distribution, while the
-variance-gamma boundary is a gamma distribution.
-
-## 13. Sequential posterior update for the mixing variable
-
-Suppose the conditional distribution of $W$ after observing the first $j-1$
-whitened coordinates is
-
-$$
-W\mid Y_1=y_1,\ldots,Y_{j-1}=y_{j-1}
-\sim
-\operatorname{GIG}(\lambda_{j-1},\chi_{j-1},\psi_{j-1}).
-$$
-
-The likelihood contribution from coordinate $j$ is
-
-$$
-f(y_j\mid w)
-\propto
-w^{-1/2}
-\exp\left\{-\frac{(y_j-wb_j)^2}{2w}\right\}.
-$$
-
-Combining this likelihood with the GIG density gives another GIG distribution.
-After observing $y_j$, its parameters update as
-
-$$
-\boxed{
-\lambda_j=\lambda_{j-1}-\frac12,
-\qquad
-\chi_j=\chi_{j-1}+y_j^2,
-\qquad
-\psi_j=\psi_{j-1}+b_j^2.
+cond_cdf <- function(x, w, mu, variance, skew) {
+  # whiten the draw with mu, w, skew, and variance
+    pnorm((x - mu - w * skew) / sqrt(w * variance))
 }
-$$
 
-Equivalently, after the first $j-1$ coordinates,
+skew_t_cdf <- function(x, mu, variance, skew, nu) {
+  shape <- nu/2
+  rate <- nu/2
 
-$$
-\lambda_{j-1}=\lambda_0-\frac{j-1}{2},
-\quad
-\chi_{j-1}=\chi_0+\sum_{k<j}y_k^2,
-\quad
-\psi_{j-1}=\psi_0+\sum_{k<j}b_k^2.
-$$
+  integrand <- function(w) {
+    cond_cdf(x = x, w = w, mu = mu, variance = variance, skew = skew) *
+    dinvgamma(w, shape = shape, rate = rate)
+  }
 
-## 14. The skewed Rosenblatt coordinate
-
-Before updating with $y_j$, calculate its conditional CDF by averaging the
-conditional normal CDF over the current posterior distribution of $W$:
-
-$$
-\boxed{
-U_j
-=
-\int_0^\infty
-\Phi\left(\frac{y_j-wb_j}{\sqrt w}\right)
-f_{\operatorname{GIG}}
-\left(w;\lambda_{j-1},\chi_{j-1},\psi_{j-1}\right)
-\,dw.
+  # integrate out dependence on w
+  integrate(integrand, lower = 0, upper = Inf)$value
 }
-$$
 
-The calculation for one tensor observation is therefore:
+res <- numeric(length(univar_skewt))
 
-1. Subtract $\mathcal M$ and whiten the observation to obtain $y$.
-2. Whiten $\mathcal A$ to obtain $b$.
-3. Initialize $(\lambda_0,\chi_0,\psi_0)$ for the selected distribution.
-4. For $j=1,\ldots,p$, integrate the conditional normal CDF over the current
-   GIG distribution to obtain $U_j$.
-5. Update the three GIG parameters using $y_j$ and $b_j$.
-6. Continue in the same column-major coordinate order for every observation.
+for (i in seq_along(univar_skewt)) { # apply to each draw
+  res[i] <- skew_t_cdf(x = univar_skewt[i], mu = mu, variance = variance,
+                       skew = skew, nu = nu)
+}
 
-Under the correct model with known parameters, the resulting coordinates are
-independent $\operatorname{Uniform}(0,1)$ variables. The package evaluates the
-one-dimensional integral numerically on the log-$W$ scale; it never constructs
-a high-dimensional skewed tensor CDF.
-
-## 15. Package implementation
-
-For a skew-$t$ model with known parameters, the transformation is obtained by
-
-```r
-U <- tensor_rosenblatt(
-  draws,
-  model = "skewt",
-  parameters = list(
-    mu = mu,
-    sigmas = sigmas,
-    skew = skew,
-    nu = nu
-  )
-)
+ggplot() +
+  geom_histogram(aes(x = res, y = after_stat(density)), 
+                 fill = "white", color = "black", 
+                 breaks = seq(0, 1, length.out = 51)) +
+  geom_function(fun = dunif, color = "red", lty = 2) +
+  labs(x = "Value", y = "Density") +
+  theme_minimal() 
 ```
 
-For fitted parameters, the MLE can be passed directly:
 
-```r
-fit <- tensor_mle(draws, model = "skewt")
+## Multivariate Skewed-t
 
-U_fitted <- tensor_rosenblatt(
-  draws,
-  model = "skewt",
-  parameters = fit
-)
+Now suppose we observe a bivariate skewed-t.
+
+$X = \mu + W \mathbf{a} + \sqrt{W} \mathbf{Z}, \quad Z \sim N_{2}(0, \Sigma)$
+
+where 
+
+$$\Sigma = 
+\begin{pmatrix}
+\sigma_{1}^{2} & \rho \sigma_{1} \sigma_{2} \\
+\rho \sigma_{1} \sigma_{2} & \sigma_{2}^{2}
+\end{pmatrix}
+$$
+
+Now we need the Rosenblatt to compute $U_{1} = F_{X_{1}}(x_{1})$ and $U_{2} = F_{X_{2}|X_{1}}(x_{2}|x_{1}).$
+
+### Multivariate Skewed-t $X_{1}$ 
+
+First, consider $X_{1}$. Conditional on $W = w, X_{1}|W = w \sim N(\mu_{1} + w a_{1}, w \sigma_{1}^{2})$. This is the same as the univariate case we defined above. 
+
+```{r}
+nu <- 4 # generate bivariate values
+mu <- c(1, 2)
+variance <- matrix(data = c(1, 0.5, 0.5, 3), nrow = 2)
+skew <- c(0.2, 0.4)
+
+bivar_skewt <- rtskewt(n = 1e4, mu = mu, sigmas = list(variance),
+                       skew = skew, nu = nu)
+
+one_draw <- bivar_skewt[1]
+
+u1 <- skew_t_cdf(x = one_draw[1], mu = mu[1], variance = variance[1, 1],
+                 skew = skew[1], nu = nu)
 ```
 
-These fitted Rosenblatt values are useful for histograms, Q--Q plots, and
-dependence diagnostics. Because the same data estimated the parameters, a
-formal goodness-of-fit p-value additionally requires fitted-parameter
-calibration, as provided by `tensor_gof_scores()` or by a refitted parametric
-bootstrap.
+### Multivariate Skewed-t $X_{2}$ 
+
+Once we have observed $X_{1} = x_{1}$, we have more information about the mixing variable $W$. Instead of using $f_{W}(w)$, we want to find $f_{W|X_{1}}(w|x_{1})$. 
+
+We can use Bayes' rule to compute 
+
+$$f_{W|X_{1}}(w|x_{1}) \propto f_{X_{1}|W}(x_{1}|w) f_{W}(w)$$
+
+We can then compute $U_{2}$ using the updated CDF of $X_{2}$. 
+
+$$F_{X_{2}|X_{1}}(x_{2}|x_{1}) = \int_{0}^{\infty} F_{X_{2}|X_{1}, W)}(x_{2}|x_{1}, w) f_{W|X_{1}}(w|x_{1}) dw$$
+
+We can apply the CDF to the draws. If the model is correct, they should become Uniform(0, 1). 
+
+```{r}
+L <- t(chol(variance))
+
+conditional_u2 <- function(x1, x2, b1, b2, nu) {
+
+  weight <- function(w) { # unnormalized posterior density of W|X_1 = x_1
+    dnorm(x1, mean = w * b1, sd = sqrt(w)) * #f(X_1|W=w) ~ N(wb1, w)
+    dinvgamma(w, shape = nu / 2, rate = nu / 2) #f(W)
+  }
+
+  numerator <- integrate(
+    #P(X_2 <= x_2|W = w) = F(X_2_W)
+    function(w) {
+      pnorm(x2, mean = w * b2, sd = sqrt(w)) * weight(w)
+    },
+    lower = 0, upper = Inf)$value
+
+  #integral of #f(X_1|W=w) f(W) dw = f(X_1), normalize result
+  denominator <- integrate(weight, lower = 0, upper = Inf)$value
+
+  numerator / denominator
+}
+
+res_whitened <- bivar_skewt
+
+for(i in 1:1e4) {
+  curr_draw <- bivar_skewt[i]
+
+  #whiten skew vector
+  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
+
+  #whiten y
+  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
+
+  #apply CDF to first element
+  u1 <- skew_t_cdf(x = curr_draw[1], mu = mu[1], variance = variance[1, 1],
+                  skew = skew[1], nu = nu)
+
+  #apply conditional CDF to second element     
+  u2 <- conditional_u2(y[1], y[2], b[1], b[2], nu)
+
+  res_whitened[i] <- c(u1, u2)
+}
+
+res_whitened |> 
+  as.numeric() |> 
+  as_tibble() |> 
+  ggplot() +
+  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", breaks = seq(0, 1, length.out = 51)) +
+  geom_function(fun = dunif, color = "red", lty = 2) +
+  labs(x = "Value", y = "Density") +
+  theme_minimal()
+```
 
 
 ```{r}
-#| eval: false
-#| include: false
+draws_orig <- tibble(x1 = rep(0, 1e4), x2 = rep(0, 1e4))
 
-library(tensortools)
-set.seed(2)
-
-dims <- c(2L, 2L)
-mu <- array(0, dim = dims)
-sigmas <- list(diag(2), diag(2))
-skew <- array(c(0.4, -0.2, 0.3, 0), dim = dims)
-nu <- 7
-
-draws <- rtskewt(
-  n = 100,
-  mu = mu,
-  sigmas = sigmas,
-  skew = skew,
-  nu = nu
-)
-
-fit <- tensor_mle(draws, model = "skewt")
-
-U <- tensor_rosenblatt(
-  draws,
-  model = "skewt",
-  parameters = fit
-)
-
-hist(unclass(U))
-
-result <- tensor_gof_scores(
-  draws,
-  model = "skewt",
-  fit = fit,
-  calibration = "multiplier",
-  B = 1999,
-  seed = 2026
-)
-
-```
-
-## Empirical type-I error under a true skew-$t$ model
-
-This simulation generates observations from one tensor skew-$t$ distribution
-and fits that same model in every iteration. The null hypothesis is therefore
-true. The rejection proportion estimates the test's type-I error rate and
-should be close to the selected significance level in a sufficiently large
-simulation.
-
-The current setting uses 100 iterations. At $\alpha=0.05$, approximately five
-rejections are expected on average when the test is correctly calibrated,
-although the realized count varies. A reliable type-I error study should use
-more Monte Carlo iterations, for example at least 500.
-
-```{r skewt-gof-type-one-error}
-#| eval: false
-#| include: false
-
-type_one_iterations <- 100L
-type_one_sample_size <- 100L
-type_one_alpha <- 0.05
-type_one_B <- 1999L
-
-type_one_dims <- c(2L, 2L)
-type_one_mu <- array(0, dim = type_one_dims)
-type_one_sigmas <- list(
-  matrix(c(1, 0.3, 0.3, 1), nrow = 2),
-  toeplitz(c(1, 0.25))
-)
-type_one_skew <- array(
-  c(0.4, -0.2, 0.3, 0),
-  dim = type_one_dims
-)
-type_one_nu <- 7
-
-type_one_results <- vector("list", type_one_iterations)
-
-for (iteration in seq_len(type_one_iterations)) {
-  # Giving each iteration its own seed makes individual failures reproducible.
-  set.seed(12000 + iteration)
-
-  null_draws <- rtskewt(
-    n = type_one_sample_size,
-    mu = type_one_mu,
-    sigmas = type_one_sigmas,
-    skew = type_one_skew,
-    nu = type_one_nu
-  )
-
-  type_one_results[[iteration]] <- tryCatch(
-    {
-      null_fit <- tensor_mle(
-        null_draws,
-        model = "skewt",
-        quiet = TRUE
-      )
-
-      null_test <- tensor_gof_scores(
-        draws = null_draws,
-        model = "skewt",
-        fit = null_fit,
-        marginal_degree = 3L,
-        include_interactions = TRUE,
-        max_basis = 20L,
-        calibration = "multiplier",
-        B = type_one_B,
-        seed = 22000 + iteration
-      )
-
-      data.frame(
-        iteration = iteration,
-        p_value = null_test$p.value,
-        reject = null_test$p.value < type_one_alpha,
-        error = NA_character_
-      )
-    },
-    error = function(error) {
-      data.frame(
-        iteration = iteration,
-        p_value = NA_real_,
-        reject = NA,
-        error = conditionMessage(error)
-      )
-    }
-  )
+for(i in 1:1e4) {
+  draws_orig$x1[i] <- bivar_skewt[i][1]
+  draws_orig$x2[i] <- bivar_skewt[i][2]
 }
 
-type_one_results <- do.call(rbind, type_one_results)
-successful_iterations <- !is.na(type_one_results$p_value)
-if (!any(successful_iterations)) {
-  stop("All type-I error simulation iterations failed.")
-}
-estimated_type_one_error <- mean(
-  type_one_results$reject[successful_iterations]
-)
-number_rejected <- sum(
-  type_one_results$reject[successful_iterations]
-)
-type_one_interval <- binom.test(
-  number_rejected,
-  sum(successful_iterations)
-)$conf.int
-type_one_mcse_under_nominal <- sqrt(
-  type_one_alpha * (1 - type_one_alpha) /
-    sum(successful_iterations)
-)
+L <- t(chol(variance))
 
-type_one_results
-data.frame(
-  successful_iterations = sum(successful_iterations),
-  failed_iterations = sum(!successful_iterations),
-  number_rejected = number_rejected,
-  nominal_alpha = type_one_alpha,
-  estimated_type_one_error = estimated_type_one_error,
-  exact_95_percent_lower = type_one_interval[1L],
-  exact_95_percent_upper = type_one_interval[2L],
-  mcse_under_nominal_alpha = type_one_mcse_under_nominal
-)
+u1 <- rep(0, 1e4)
+u2 <- rep(0, 1e4)
+
+for(i in 1:1e4) {
+  curr_draw <- bivar_skewt[i]
+  #apply CDF to first element
+  u1[i] <- skew_t_cdf(x = curr_draw[1], mu = mu[1], 
+                      variance = variance[1, 1],  skew = skew[1], nu = nu)
+  
+  #whiten skew vector
+  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
+
+  #whiten y
+  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
+
+  #apply conditional CDF to second element     
+  u2[i] <- conditional_u2(y[1], y[2], b[1], b[2], nu)
+}
+
+draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = x1, y = x2)) +
+  theme_minimal() +
+  labs(x = "X1", y = "X2") +
+draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = u1, y = x2)) +
+  theme_minimal() +
+  labs(x = "U1", y = "X2") +
+draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = u1, y = u2)) +
+  theme_minimal() +
+  labs(x = "U1", y = "U2")
 ```
+
+
+## Wrong Parameters
+
+```{r}
+#true variance: c(1, 0.5, 0.5, 3)
+#replace true parameter value
+variance <- matrix(data = c(3, 0.5, 0.5, 3), nrow = 2)
+
+L <- t(chol(variance))
+
+res_whitened <- bivar_skewt
+
+for(i in 1:1e4) {
+  curr_draw <- bivar_skewt[i]
+
+  #whiten skew vector
+  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
+
+  #whiten y
+  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
+
+  #apply CDF to first element
+  u1 <- skew_t_cdf(x = curr_draw[1], mu = mu[1], variance = variance[1, 1],
+                  skew = skew[1], nu = nu)
+
+  #apply conditional CDF to second element     
+  u2 <- conditional_u2(y[1], y[2], b[1], b[2], nu)
+
+  res_whitened[i] <- c(u1, u2)
+}
+
+res_whitened |> 
+  as.numeric() |> 
+  as_tibble() |> 
+  ggplot() +
+  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", breaks = seq(0, 1, length.out = 51)) +
+  geom_function(fun = dunif, color = "red", lty = 2) +
+  labs(x = "Value", y = "Density") +
+  theme_minimal() 
+```
+
