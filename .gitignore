@@ -64,3 +64,6 @@ raw/
 
 # Local temporary output
 tmp/
+rosenblatt_derivation.qmd
+
+rosenblatt_derivation_files/

@@ -15,10 +15,11 @@ format: html
 \newcommand{\vs}[1]{\mathcal{#1}}
 \newcommand{\mn}[2]{\sideset{_{#1}}{_{#2}}{\mathop{\boldsymbol{\times}}}}
 
-```{R, message = FALSE, echo = FALSE}
+```{r, message = FALSE, echo = FALSE}
 library(tidyverse)
 library(tensortools)
 library(invgamma)
+library(patchwork)
 ```
 
 ## Rosenblatt transformation
@@ -100,21 +101,17 @@ mu <- 1
 variance <- 2
 skew <- 3
 
+# create univariate draws
 univar_skewt <- rtskewt(n = 1e4, mu = mu, sigmas = list(matrix(variance)), 
                         skew = skew, nu = nu)
-
-cond_cdf <- function(x, w, mu, variance, skew) {
-  # whiten the draw with mu, w, skew, and variance
-    pnorm((x - mu - w * skew) / sqrt(w * variance))
-}
 
 skew_t_cdf <- function(x, mu, variance, skew, nu) {
   shape <- nu/2
   rate <- nu/2
 
   integrand <- function(w) {
-    cond_cdf(x = x, w = w, mu = mu, variance = variance, skew = skew) *
-    dinvgamma(w, shape = shape, rate = rate)
+    pnorm((x - mu - w * skew) / sqrt(w * variance)) *  # f(x|w)
+    dinvgamma(w, shape = shape, rate = rate) # f(w)
   }
 
   # integrate out dependence on w
@@ -167,11 +164,6 @@ skew <- c(0.2, 0.4)
 
 bivar_skewt <- rtskewt(n = 1e4, mu = mu, sigmas = list(variance),
                        skew = skew, nu = nu)
-
-one_draw <- bivar_skewt[1]
-
-u1 <- skew_t_cdf(x = one_draw[1], mu = mu[1], variance = variance[1, 1],
-                 skew = skew[1], nu = nu)
 ```
 
 ### Multivariate Skewed-t $X_{2}$ 
@@ -189,49 +181,72 @@ $$F_{X_{2}|X_{1}}(x_{2}|x_{1}) = \int_{0}^{\infty} F_{X_{2}|X_{1}, W)}(x_{2}|x_{
 We can apply the CDF to the draws. If the model is correct, they should become Uniform(0, 1). 
 
 ```{r}
+n <- n_draws(bivar_skewt)
+
 L <- t(chol(variance))
 
-conditional_u2 <- function(x1, x2, b1, b2, nu) {
+b <- drop(forwardsolve(L, skew))
 
-  weight <- function(w) { # unnormalized posterior density of W|X_1 = x_1
-    dnorm(x1, mean = w * b1, sd = sqrt(w)) * #f(X_1|W=w) ~ N(wb1, w)
-    dinvgamma(w, shape = nu / 2, rate = nu / 2) #f(W)
+centered <- bivar_skewt - mu
+
+Y <- t(forwardsolve(L, t(centered)))
+
+conditional_u2 <- function(x1, x2, b1, b2, nu) {
+  weight <- function(w) {
+    dnorm(x1, mean = w * b1, sd = sqrt(w)) *
+      dinvgamma(w, shape = nu / 2, rate = nu / 2)
   }
 
   numerator <- integrate(
-    #P(X_2 <= x_2|W = w) = F(X_2_W)
     function(w) {
       pnorm(x2, mean = w * b2, sd = sqrt(w)) * weight(w)
     },
-    lower = 0, upper = Inf)$value
+    lower = 0,
+    upper = Inf
+  )$value
 
-  #integral of #f(X_1|W=w) f(W) dw = f(X_1), normalize result
-  denominator <- integrate(weight, lower = 0, upper = Inf)$value
+  denominator <- integrate(
+    weight,
+    lower = 0,
+    upper = Inf
+  )$value
 
   numerator / denominator
 }
 
-res_whitened <- bivar_skewt
+u1 <- vapply(
+  seq_len(n), 
+  function(i) {
+    skew_t_cdf(
+      x        = bivar_skewt[i][1],
+      mu       = mu[1],
+      variance = variance[1, 1],
+      skew     = skew[1],
+      nu       = nu
+    )
+  },
+  numeric(1)
+)
 
-for(i in 1:1e4) {
-  curr_draw <- bivar_skewt[i]
+# integrate() itself is not vectorized over observations
+u2 <- vapply(
+  seq_len(n),
+  function(i) {
+    conditional_u2(
+      x1 = Y[i, 1],
+      x2 = Y[i, 2],
+      b1 = b[1],
+      b2 = b[2],
+      nu = nu
+    )
+  },
+  numeric(1)
+)
 
-  #whiten skew vector
-  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
+res_whitened <- cbind(u1 = u1, u2 = u2)
+```
 
-  #whiten y
-  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
-
-  #apply CDF to first element
-  u1 <- skew_t_cdf(x = curr_draw[1], mu = mu[1], variance = variance[1, 1],
-                  skew = skew[1], nu = nu)
-
-  #apply conditional CDF to second element     
-  u2 <- conditional_u2(y[1], y[2], b[1], b[2], nu)
-
-  res_whitened[i] <- c(u1, u2)
-}
-
+```{r}
 res_whitened |> 
   as.numeric() |> 
   as_tibble() |> 
@@ -249,27 +264,6 @@ draws_orig <- tibble(x1 = rep(0, 1e4), x2 = rep(0, 1e4))
 for(i in 1:1e4) {
   draws_orig$x1[i] <- bivar_skewt[i][1]
   draws_orig$x2[i] <- bivar_skewt[i][2]
-}
-
-L <- t(chol(variance))
-
-u1 <- rep(0, 1e4)
-u2 <- rep(0, 1e4)
-
-for(i in 1:1e4) {
-  curr_draw <- bivar_skewt[i]
-  #apply CDF to first element
-  u1[i] <- skew_t_cdf(x = curr_draw[1], mu = mu[1], 
-                      variance = variance[1, 1],  skew = skew[1], nu = nu)
-  
-  #whiten skew vector
-  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
-
-  #whiten y
-  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
-
-  #apply conditional CDF to second element     
-  u2[i] <- conditional_u2(y[1], y[2], b[1], b[2], nu)
 }
 
 draws_orig |> 
@@ -299,34 +293,64 @@ variance <- matrix(data = c(3, 0.5, 0.5, 3), nrow = 2)
 
 L <- t(chol(variance))
 
-res_whitened <- bivar_skewt
+b <- drop(forwardsolve(L, skew))
 
-for(i in 1:1e4) {
-  curr_draw <- bivar_skewt[i]
+centered <- bivar_skewt - mu
 
-  #whiten skew vector
-  b <- drop(forwardsolve(L, matrix(skew, ncol = 1)))
+Y <- t(forwardsolve(L, t(centered)))
 
-  #whiten y
-  y <- drop(forwardsolve(L, matrix(as.numeric(curr_draw) - mu, ncol = 1)))
+u1 <- vapply(
+  seq_len(n), 
+  function(i) {
+    skew_t_cdf(
+      x        = bivar_skewt[i][1],
+      mu       = mu[1],
+      variance = variance[1, 1],
+      skew     = skew[1],
+      nu       = nu
+    )
+  },
+  numeric(1)
+)
 
-  #apply CDF to first element
-  u1 <- skew_t_cdf(x = curr_draw[1], mu = mu[1], variance = variance[1, 1],
-                  skew = skew[1], nu = nu)
+# integrate() itself is not vectorized over observations
+u2 <- vapply(
+  seq_len(n),
+  function(i) {
+    conditional_u2(
+      x1 = Y[i, 1],
+      x2 = Y[i, 2],
+      b1 = b[1],
+      b2 = b[2],
+      nu = nu
+    )
+  },
+  numeric(1)
+)
 
-  #apply conditional CDF to second element     
-  u2 <- conditional_u2(y[1], y[2], b[1], b[2], nu)
+res_whitened_wrong <- cbind(u1 = u1, u2 = u2)
 
-  res_whitened[i] <- c(u1, u2)
-}
-
-res_whitened |> 
+res_whitened_wrong |> 
   as.numeric() |> 
   as_tibble() |> 
   ggplot() +
-  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", breaks = seq(0, 1, length.out = 51)) +
+  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", 
+                     breaks = seq(0, 1, length.out = 51)) +
   geom_function(fun = dunif, color = "red", lty = 2) +
   labs(x = "Value", y = "Density") +
   theme_minimal() 
 ```
 
+
+We need to assess whether the transformed draws are uniform on the unit hypercube.  
+```{r}
+library(SHT)
+
+U <- as.matrix(res_whitened)
+
+unif.2017YMq(U)
+
+U_wrong <- as.matrix(res_whitened_wrong)
+
+unif.2017YMq(U_wrong)
+```
