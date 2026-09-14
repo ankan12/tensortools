@@ -343,6 +343,9 @@ res_whitened_wrong |>
 
 
 We need to assess whether the transformed draws are uniform on the unit hypercube.  
+
+# Test 2017YMQ Method
+
 ```{r}
 library(SHT)
 
@@ -354,3 +357,128 @@ U_wrong <- as.matrix(res_whitened_wrong)
 
 unif.2017YMq(U_wrong)
 ```
+
+# Test Coverage as a Metric
+
+```{r}
+library(DiceDesign)
+
+U <- U_matrix
+
+stopifnot(
+  is.matrix(U),
+  all(is.finite(U)),
+  all(U >= 0),
+  all(U <= 1)
+)
+```
+
+```{r}
+tic()
+discrepancy_result <- discrepancyCriteria(
+  U_wrong,
+  type = c("L2star")
+)
+toc()
+
+coverage(U)
+
+coverage(U_wrong)
+#0.0034
+#0.0459
+```
+
+```{r}
+C_obs <- coverage(U_wrong)
+
+tic()
+C_null <- replicate(B, {
+  U0 <- matrix(runif(nrow(U_wrong) * ncol(U_wrong)),
+               nrow = nrow(U_wrong))
+  coverage(U0)
+})
+toc()
+
+p_upper <- (1 + sum(C_null >= C_obs)) / (B + 1)
+
+d <- ncol(U)
+
+coverage_expected <- sqrt(
+  gamma(1 + 2/d) / gamma(1 + 1/d)^2 - 1
+)
+
+coverage_fast <- function(X) {
+  X <- as.matrix(X)
+
+  nn <- RANN::nn2(
+    data = X,
+    query = X,
+    k = 2
+  )$nn.dists[, 2L]   # first neighbor is the point itself
+
+  m <- mean(nn)
+  sqrt(mean((nn - m)^2)) / m
+}
+
+coverage(U)
+coverage_fast(U)
+
+C_obs <- coverage_fast(U)
+
+C_null <- replicate(1000, {
+  U0 <- matrix(runif(20 * 20), 20, 20)
+
+  # U0 <- matrix(
+  #   runif(nrow(U_wrong) * ncol(U_wrong)),
+  #   nrow = nrow(U_wrong)
+  # )
+  coverage_fast(U0)
+})
+
+cutoff_95 <- quantile(C_null, .95)
+p_value <- (1 + sum(C_null >= C_obs)) / (length(C_null) + 1)
+
+p_value
+```
+
+```{r}
+test_sim <- function(i) {
+  generate_vals <- with(test_mod, rtskewt(n = 1e3, mu = mu, sigmas = sigmas, 
+                        skew = skew, nu = nu))
+
+  
+}
+```
+
+```{r}
+discrepancy_result
+
+tibble(x = U[, 1], y = U[, 2]) |> 
+  ggplot() +
+  geom_point(aes(x = x, y = y), alpha = 0.4) + 
+  theme_minimal() +
+tibble(x = U_wrong[, 1], y = U_wrong[, 2]) |> 
+  ggplot() +
+  geom_point(aes(x = x, y = y), alpha = 0.4) + 
+  theme_minimal()
+
+
+n <- nrow(U_matrix)
+p <- ncol(U_matrix)
+
+observed <- discrepancy_result$DisL2star
+
+null_rms <- sqrt(
+  (2^(-p) - 3^(-p)) / n
+)
+
+c(
+  observed = observed,
+  null_rms = null_rms,
+  ratio = observed / null_rms
+)
+
+0.0034/null_rms
+```
+
+
