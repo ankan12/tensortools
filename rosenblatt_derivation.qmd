@@ -20,6 +20,7 @@ library(tidyverse)
 library(tensortools)
 library(invgamma)
 library(patchwork)
+library(SHT)
 ```
 
 ## Rosenblatt transformation
@@ -289,9 +290,9 @@ draws_orig |>
 ```{r}
 #true variance: c(1, 0.5, 0.5, 3)
 #replace true parameter value
-variance <- matrix(data = c(3, 0.5, 0.5, 3), nrow = 2)
+wrong_variance <- matrix(data = c(3, 0.5, 0.5, 3), nrow = 2)
 
-L <- t(chol(variance))
+L <- t(chol(wrong_variance))
 
 b <- drop(forwardsolve(L, skew))
 
@@ -342,20 +343,66 @@ res_whitened_wrong |>
 ```
 
 
-We need to assess whether the transformed draws are uniform on the unit hypercube.  
+For now, assume we have the correct parameter values. The next issue is we need to assess whether the transformed draws are uniform on the unit hypercube. This can be done using an Interpoint Distances test. 
+
+We define the interpoint distances as 
+
+$$\sum_{i<j}^{n} ||X_{i} - X_{j}||^2$$.
+
+We can define the sample mean of the interpoint distances as 
+
+$$\bar{\delta} = \frac{1}{n \choose 2} \sum_{i<j}^{n} ||X_{i} - X_{j}||^2$$
+And the sample variance of the interpoint distances. 
+
+$$\bar{S} = \frac{1}{n \choose 2} \sum_{i<j}^{n} \left(||X_{i} - X_{j}||^{2} - \frac{d}{6} \right)^{2}$$
+
+We want to apply the Central Limit Theorem, so we need to find the variances. 
+
+$$\text{Var}(\hat{\delta}) = \frac{d(2n+3)}{90n(n-1)}$$ and
+
+$$\text{Var}(\bar{S}) = 
+\begin{cases}
+\frac{1}{n \choose 2} \left(\frac{1}{56700}[989 + 202(n-2)]\right), & \quad d = 2 \\
+\frac{1}{n \choose 2} \left(\frac{1}{1050}[37 + 6(n-2)]\right), & \quad d = 3 \\
+\frac{1}{n \choose 2} \left(\frac{49 d^{2}}{16200} + \frac{101 d}{37800} + 2(n-2) \left[\frac{d^{2}}{16200} + \frac{29d}{37800}\right]\right), & \quad d \ge 4
+\end{cases}$$
+
+Let $\sigma_{\bar{\delta}} = \sqrt{\text{Var}(\bar{\delta})}$ and $\sigma_{\bar{S}} = \sqrt{\text{Var}(\bar{S})}$. 
+
+Then with the Central Limit Theorem for U_processes, we can say that
+
+$$\frac{\bar{\delta} - d/6}{\sigma_{\bar{\delta}}} \xrightarrow{D}  N(0, 1)$$ and
+
+$$\frac{\bar{S} - 7d/180}{\sigma_{\bar{S}}} \xrightarrow{D}  N(0, 1)$$
+
+We define 
+
+$$Q_{1} = \frac{(\bar{\delta} - d/6)^{2}}{\text{Var}(\bar{\delta})}$$ and
+
+$$Q_{2} = \frac{(\bar{S} - 7d/180)^{2}}{\text{Var}(\bar{S})}$$.
+
+Then $Q_{1} \xrightarrow{D} \chi^{2}_{1}$ and $Q_{2} \xrightarrow{D} \chi_{1}^{2}$. 
+
+Since the mean $\bar{\delta}$ and the variance $\bar{S}$ of asymptotically normal variables are independent, we can also define $Q_{3} = Q_{1} + Q_{2} \xrightarrow{D} \chi_{2}^{2}$.
 
 # Test 2017YMQ Method
 
 ```{r}
-library(SHT)
+new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
+                     skew = skew, nu = nu)
 
-U <- as.matrix(res_whitened)
+U <- tensor_rosenblatt(draws = new_draws, model = "skewt",
+                       parameters = list(mu = mu, sigmas = list(variance), skew = skew, nu = nu))
 
-unif.2017YMq(U)
+U_wrong <- tensor_rosenblatt(draws = new_draws, model = "skewt",
+                       parameters = list(mu = mu, sigmas = list(wrong_variance), skew = skew, nu = nu))
 
-U_wrong <- as.matrix(res_whitened_wrong)
+tibble(x = U_wrong[, 1], y = U_wrong[, 2]) |> 
+  ggplot() + 
+  geom_point(aes(x = x, y = y))
 
-unif.2017YMq(U_wrong)
+unif.2017YMi(unclass(U))
+unif.2017YMi(unclass(U_wrong))
 ```
 
 # Test Coverage as a Metric
@@ -363,32 +410,19 @@ unif.2017YMq(U_wrong)
 ```{r}
 library(DiceDesign)
 
-U <- U_matrix
-
-stopifnot(
-  is.matrix(U),
-  all(is.finite(U)),
-  all(U >= 0),
-  all(U <= 1)
-)
-```
-
-```{r}
-tic()
-discrepancy_result <- discrepancyCriteria(
-  U_wrong,
+discrepancyCriteria(
+  unclass(U_wrong),
   type = c("L2star")
 )
-toc()
 
-coverage(U)
+coverage(unclass(U))
 
-coverage(U_wrong)
+coverage(unclass(U_wrong))
 #0.0034
 #0.0459
 ```
 
-```{r}
+<!-- ```{r, eval = FALSE}
 C_obs <- coverage(U_wrong)
 
 tic()
@@ -439,9 +473,9 @@ cutoff_95 <- quantile(C_null, .95)
 p_value <- (1 + sum(C_null >= C_obs)) / (length(C_null) + 1)
 
 p_value
-```
+``` -->
 
-```{r}
+<!-- ```{r, eval = FALSE}
 test_sim <- function(i) {
   generate_vals <- with(test_mod, rtskewt(n = 1e3, mu = mu, sigmas = sigmas, 
                         skew = skew, nu = nu))
@@ -450,7 +484,7 @@ test_sim <- function(i) {
 }
 ```
 
-```{r}
+```{r, eval = FALSE}
 discrepancy_result
 
 tibble(x = U[, 1], y = U[, 2]) |> 
@@ -482,3 +516,18 @@ c(
 ```
 
 
+
+
+# Uniformity test for each marginal
+```{r, eval = FALSE}
+p_marginal <- apply(U_wrong, 2, function(u) {
+  ks.test(u, "punif")$p.value
+})
+
+p_adjusted <- p.adjust(p_marginal, method = "BH")
+
+p_adjusted
+
+cor(U, method = "spearman")
+``` 
+-->
