@@ -21,6 +21,7 @@ library(tensortools)
 library(invgamma)
 library(patchwork)
 library(SHT)
+theme_set(theme_minimal())
 ```
 
 ## Rosenblatt transformation
@@ -106,6 +107,42 @@ skew <- 3
 univar_skewt <- rtskewt(n = 1e4, mu = mu, sigmas = list(matrix(variance)), 
                         skew = skew, nu = nu)
 
+# define vectorized skewt for ggplot
+dtskewt_vec <- function(x, mu, skew, sigmas, nu, log = FALSE) {
+  if (length(mu) != 1L || length(skew) != 1L ||
+      length(sigmas) != 1L ||
+      !all(dim(sigmas[[1]]) == c(1L, 1L))) {
+    stop("dtskewt_vec() is only for the univariate case.")
+  }
+
+  vapply(
+    x,
+    function(xi) {
+      dtskewt(x = xi, mu = mu, skew = skew, sigmas = sigmas, 
+              nu = nu, log = log)
+    },
+    numeric(1)
+  )
+}
+```
+
+
+Below, you can see the plot of the skewed-t distribution. The randomly generated draws are plotted with an overlay of the expected distribution. 
+```{r}
+ggplot() +
+  geom_histogram(aes(x = univar_skewt, y = after_stat(density)),
+                     bins = 200) +
+  geom_function(fun = dtskewt_vec, 
+                args = list(mu = mu, skew = skew,
+                sigmas = list(matrix(variance)), nu = nu),
+                color = "red", lty = 2) +
+  xlim(quantile(univar_skewt, 0.01), quantile(univar_skewt, 0.99)) + 
+  labs(x = "Univariate Skewed-T Draws", y = "Density")
+```
+
+
+We can apply the Rosenblatt transformation to transform the draws from the skewed-t distribution to a uniform. Since these draws are univariate, the Rosenblatt is identical to the Probability Integral Transformation in this case. We apply the CDF to the draws to obtain a uniform. 
+```{r}
 skew_t_cdf <- function(x, mu, variance, skew, nu) {
   shape <- nu/2
   rate <- nu/2
@@ -127,14 +164,11 @@ for (i in seq_along(univar_skewt)) { # apply to each draw
 }
 
 ggplot() +
-  geom_histogram(aes(x = res, y = after_stat(density)), 
-                 fill = "white", color = "black", 
-                 breaks = seq(0, 1, length.out = 51)) +
+  geom_histogram(aes(x = res, y = after_stat(density)), binwidth = 0.05,
+                 color = "black", fill = "white") +
   geom_function(fun = dunif, color = "red", lty = 2) +
-  labs(x = "Value", y = "Density") +
-  theme_minimal() 
+  labs(x = "Value", y = "Density") 
 ```
-
 
 ## Multivariate Skewed-t
 
@@ -247,18 +281,7 @@ u2 <- vapply(
 res_whitened <- cbind(u1 = u1, u2 = u2)
 ```
 
-```{r}
-res_whitened |> 
-  as.numeric() |> 
-  as_tibble() |> 
-  ggplot() +
-  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", breaks = seq(0, 1, length.out = 51)) +
-  geom_function(fun = dunif, color = "red", lty = 2) +
-  labs(x = "Value", y = "Density") +
-  theme_minimal()
-```
-
-
+In the plots below, we can see how the Rosenblatt transformation works. The first plot contains the original draws. The second plot is after the Rosenblatt has transformed $X_{1}$ into $U_{1}$, which should now be uniformly distributed along that 1st dimension. The third plot is after the Rosenblatt has transformed $X_{2}$ into $U_{2}$. Now all of the points are uniformly distributed in the space $\mathbb{R}^{2}$.
 ```{r}
 draws_orig <- tibble(x1 = rep(0, 1e4), x2 = rep(0, 1e4))
 
@@ -267,26 +290,36 @@ for(i in 1:1e4) {
   draws_orig$x2[i] <- bivar_skewt[i][2]
 }
 
-draws_orig |> 
+(draws_orig |> 
   ggplot() +
-  geom_point(aes(x = x1, y = x2)) +
+  geom_point(aes(x = x1, y = x2), size = 0.6, alpha = 0.25) +
   theme_minimal() +
-  labs(x = "X1", y = "X2") +
-draws_orig |> 
+  labs(x = "X1", y = "X2")) +
+(draws_orig |> 
   ggplot() +
-  geom_point(aes(x = u1, y = x2)) +
+  geom_point(aes(x = u1, y = x2), size = 0.6, alpha = 0.25) +
   theme_minimal() +
-  labs(x = "U1", y = "X2") +
-draws_orig |> 
+  labs(x = "U1", y = "X2")) +
+(draws_orig |> 
   ggplot() +
-  geom_point(aes(x = u1, y = u2)) +
+  geom_point(aes(x = u1, y = u2), size = 0.6, alpha = 0.25) +
   theme_minimal() +
-  labs(x = "U1", y = "U2")
+  labs(x = "U1", y = "U2"))
 ```
 
 
 ## Wrong Parameters
 
+We can intentionally run the Rosenblatt transformation with wrong parameters to see its effect. The true variance used to generate the draws was 
+
+$$\Sigma = 
+\begin{pmatrix}
+1 & 0.5 \\
+0.5 & 3
+\end{pmatrix}
+$$
+
+Now, we replace $\Sigma_{1, 1}$ with 3. 
 ```{r}
 #true variance: c(1, 0.5, 0.5, 3)
 #replace true parameter value
@@ -300,13 +333,13 @@ centered <- bivar_skewt - mu
 
 Y <- t(forwardsolve(L, t(centered)))
 
-u1 <- vapply(
+u1_wrong <- vapply(
   seq_len(n), 
   function(i) {
     skew_t_cdf(
       x        = bivar_skewt[i][1],
       mu       = mu[1],
-      variance = variance[1, 1],
+      variance = wrong_variance[1, 1],
       skew     = skew[1],
       nu       = nu
     )
@@ -315,7 +348,7 @@ u1 <- vapply(
 )
 
 # integrate() itself is not vectorized over observations
-u2 <- vapply(
+u2_wrong <- vapply(
   seq_len(n),
   function(i) {
     conditional_u2(
@@ -329,21 +362,32 @@ u2 <- vapply(
   numeric(1)
 )
 
-res_whitened_wrong <- cbind(u1 = u1, u2 = u2)
-
-res_whitened_wrong |> 
-  as.numeric() |> 
-  as_tibble() |> 
-  ggplot() +
-  geom_histogram(aes(x = value, y = after_stat(density)), fill = "white", color = "black", 
-                     breaks = seq(0, 1, length.out = 51)) +
-  geom_function(fun = dunif, color = "red", lty = 2) +
-  labs(x = "Value", y = "Density") +
-  theme_minimal() 
+res_whitened_wrong <- cbind(u1 = u1_wrong, u2 = u2_wrong)
 ```
 
 
-For now, assume we have the correct parameter values. The next issue is we need to assess whether the transformed draws are uniform on the unit hypercube. This can be done using an Interpoint Distances test. 
+Below is the effect of applying the Rosenblatt distribution with the incorrect variance term. The final draws plotted in the $U_{1}$ by $U_{2}$ are not uniform across the space $\mathbb{R}^{2}$.
+```{r}
+(draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = x1, y = x2), size = 0.6, alpha = 0.25) +
+  theme_minimal() +
+  labs(x = "X1", y = "X2")) +
+(draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = u1_wrong, y = x2), size = 0.6, alpha = 0.25) +
+  theme_minimal() +
+  labs(x = "U1", y = "X2")) +
+(draws_orig |> 
+  ggplot() +
+  geom_point(aes(x = u1_wrong, y = u2_wrong), size = 0.6, alpha = 0.25) +
+  theme_minimal() +
+  labs(x = "U1", y = "U2"))
+```
+
+
+## Formal Diagnostic
+For now, assume we have the correct parameter values. The next issue is we need to assess whether the transformed draws are uniform on the unit hypercube. This can be done using an Interpoint Distances test (Yang and Modarres, 2014). 
 
 We define the interpoint distances as 
 
@@ -385,149 +429,198 @@ Then $Q_{1} \xrightarrow{D} \chi^{2}_{1}$ and $Q_{2} \xrightarrow{D} \chi_{1}^{2
 
 Since the mean $\bar{\delta}$ and the variance $\bar{S}$ of asymptotically normal variables are independent, we can also define $Q_{3} = Q_{1} + Q_{2} \xrightarrow{D} \chi_{2}^{2}$.
 
-# Test 2017YMQ Method
+# Test Method
 
+This method has been implemented in the package `SHT` (Statistical Hypothesis Testing Toolbox) as the function `unif.2017YMi`. However, it is inefficient as it constructs the entire $n \times n$ matrix of pairwise distances. The rewritten function below instead takes advantage of vectorized operations to be significantly faster. 
 ```{r}
-new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
-                     skew = skew, nu = nu)
+interpoint_dist <- function(X) {
+  n <- dim(X)[1]
+  d <- dim(X)[2]
 
-U <- tensor_rosenblatt(draws = new_draws, model = "skewt",
-                       parameters = list(mu = mu, sigmas = list(variance), skew = skew, nu = nu))
+  if (n < 2 || d < 2)
+    stop("Need at least two observations and two dimensions.")
 
-U_wrong <- tensor_rosenblatt(draws = new_draws, model = "skewt",
-                       parameters = list(mu = mu, sigmas = list(wrong_variance), skew = skew, nu = nu))
+  X_mat <- matrix(unclass(X), nrow = n, ncol = d) #matricize data
 
-tibble(x = U_wrong[, 1], y = U_wrong[, 2]) |> 
-  ggplot() + 
-  geom_point(aes(x = x, y = y))
-
-unif.2017YMi(unclass(U))
-unif.2017YMi(unclass(U_wrong))
-```
-
-# Test Coverage as a Metric
-
-```{r}
-library(DiceDesign)
-
-discrepancyCriteria(
-  unclass(U_wrong),
-  type = c("L2star")
-)
-
-coverage(unclass(U))
-
-coverage(unclass(U_wrong))
-#0.0034
-#0.0459
-```
-
-<!-- ```{r, eval = FALSE}
-C_obs <- coverage(U_wrong)
-
-tic()
-C_null <- replicate(B, {
-  U0 <- matrix(runif(nrow(U_wrong) * ncol(U_wrong)),
-               nrow = nrow(U_wrong))
-  coverage(U0)
-})
-toc()
-
-p_upper <- (1 + sum(C_null >= C_obs)) / (B + 1)
-
-d <- ncol(U)
-
-coverage_expected <- sqrt(
-  gamma(1 + 2/d) / gamma(1 + 1/d)^2 - 1
-)
-
-coverage_fast <- function(X) {
-  X <- as.matrix(X)
-
-  nn <- RANN::nn2(
-    data = X,
-    query = X,
-    k = 2
-  )$nn.dists[, 2L]   # first neighbor is the point itself
-
-  m <- mean(nn)
-  sqrt(mean((nn - m)^2)) / m
-}
-
-coverage(U)
-coverage_fast(U)
-
-C_obs <- coverage_fast(U)
-
-C_null <- replicate(1000, {
-  U0 <- matrix(runif(20 * 20), 20, 20)
-
-  # U0 <- matrix(
-  #   runif(nrow(U_wrong) * ncol(U_wrong)),
-  #   nrow = nrow(U_wrong)
-  # )
-  coverage_fast(U0)
-})
-
-cutoff_95 <- quantile(C_null, .95)
-p_value <- (1 + sum(C_null >= C_obs)) / (length(C_null) + 1)
-
-p_value
-``` -->
-
-<!-- ```{r, eval = FALSE}
-test_sim <- function(i) {
-  generate_vals <- with(test_mod, rtskewt(n = 1e3, mu = mu, sigmas = sigmas, 
-                        skew = skew, nu = nu))
-
+  pairs <- choose(n, 2) #every possible combination
   
+  values_sq <- rowSums(X_mat^2) #computes x_{i}^2, each obs squared
+  obs <- colSums(X_mat) #computes x_{ik}, total of coord across all samples
+  cross <- crossprod(X_mat) #computes x_{ik} x_{il}, vary across coord and samples
+
+  # Sum of squared pairwise distances
+  sum_pairwise <- n * sum(values_sq) - sum(obs^2)
+
+  # Sum of fourth powers of pairwise distances
+  values_four <- sum(values_sq^2)
+  v <- drop(crossprod(values_sq, X_mat))
+
+  S2 <- (n - 2) * values_four + sum(values_sq)^2 -
+        4 * (sum(obs * v) - values_four) +
+        2 * (sum(cross * cross) - values_four)
+
+  q1.top <-  sum_pairwise/pairs
+
+  c <- d / 6
+  
+  q2.top <- (S2 - 2 * c * sum_pairwise + pairs * c^2)/pairs
+
+  q1.bot <- d * (2 * n + 3) / (90 * n * (n - 1))
+
+    q2.bot <- if (d == 2) {
+    ((989 + 202 * (n - 2)) / 56700)/pairs
+  } else if (d == 3) {
+    ((37 + 6 * (n - 2)) / 1050)/pairs
+  } else {
+    (49 * d^2 / 16200 +
+     101 * d / 37800 +
+     2 * (n - 2) * (d^2 / 16200 + 29 * d / 37800))/pairs
+  }
+
+  Q1 <- (q1.top - d / 6)^2 / q1.bot
+  Q2 <- (q2.top - 7 * d / 180)^2 / q2.bot
+  Q3 <- Q1 + Q2
+
+  tibble(Q1 = Q1, Q2 = Q2, Q3 = Q3, 
+         p_Q1 = pchisq(Q1, df = 1, lower.tail = FALSE),
+         p_Q2 = pchisq(Q2, df = 1, lower.tail = FALSE),
+         p_Q3 = pchisq(Q3, df = 2, lower.tail = FALSE))
 }
-```
 
-```{r, eval = FALSE}
-discrepancy_result
-
-tibble(x = U[, 1], y = U[, 2]) |> 
-  ggplot() +
-  geom_point(aes(x = x, y = y), alpha = 0.4) + 
-  theme_minimal() +
-tibble(x = U_wrong[, 1], y = U_wrong[, 2]) |> 
-  ggplot() +
-  geom_point(aes(x = x, y = y), alpha = 0.4) + 
-  theme_minimal()
-
-
-n <- nrow(U_matrix)
-p <- ncol(U_matrix)
-
-observed <- discrepancy_result$DisL2star
-
-null_rms <- sqrt(
-  (2^(-p) - 3^(-p)) / n
-)
-
-c(
-  observed = observed,
-  null_rms = null_rms,
-  ratio = observed / null_rms
-)
-
-0.0034/null_rms
+bench::mark(unname(unif.2017YMi(res_whitened, "Q1")$statistic), 
+                   interpoint_dist(res_whitened)$Q1)
 ```
 
 
+First, we can test that this metric works when we generate truly uniform values. As expected, the rejection rate is about 0.05. However, $Q_{3}$ had a slightly higher rejection rate. $Q_{1}$ and $Q_{2}$ are both asymptotically distributed as a $\chi_{1}^{2}$. $Q_{3}$ is defined as the sum of $Q_{1}$ and $Q_{2}$, so it depends on the joint behavior. This may lead to the finite-sample distribution of $Q_{3}$ to derivate from its asympotitic distribution of $\chi_{2}^{2}$. Due to this behavior, I will use the $p$-values from $Q_{1}$ and $Q_{2}$ as the main diagnostic values for rejection, but will still report $Q_{3}$ in case it is of interest.  
+
+```{r}
+sim_uniform <- function(i) {
+  p <- length(mu)
+
+  X <- matrix(
+    runif(1e4 * p),
+    nrow = 1e4,
+    ncol = p
+  )
+
+  interpoint_dist(X)
+}
+
+res_uniform <- map_dfr(1:1e4, sim_uniform)
+
+c(Q1_reject = mean(res_uniform$p_Q1 < 0.05),
+  Q2_reject = mean(res_uniform$p_Q2 < 0.05),
+  Q3_reject = mean(res_uniform$p_Q3 < 0.05))
+
+res_uniform |> 
+  ggplot() +
+    geom_histogram(aes(x = Q1, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
+    xlim(c(quantile(res_uniform$Q1, 0.05), quantile(res_uniform$Q1, 0.95))) +
+    labs(x = "Q1", y = "Density") +
+    theme_minimal() +
+res_uniform |> 
+  ggplot() +
+    geom_histogram(aes(x = Q2, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
+    xlim(c(quantile(res_uniform$Q2, 0.05), quantile(res_uniform$Q2, 0.95))) +
+    labs(x = "Q2", y = "Density") +
+    theme_minimal() +
+res_uniform |> 
+  ggplot() +
+    geom_histogram(aes(x = Q3, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 2), color = "red", lty = 2) +
+    labs(x = "Q3", y = "Density") +
+    theme_minimal() 
+```
+
+We can run a simulation now where we generate bivariate skewed t values, apply the Rosenblatt transformation with the true parameters, and then compute our test statistic using the interpoint distances. The rejection rate is nominal, with about 5% of samples being rejected. 
+```{r}
+sim_interdistance <- function(i) {
+  new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
+                       skew = skew, nu = nu)
+
+
+  U <- tensor_rosenblatt(draws = new_draws, model = "skewt",
+                        parameters = list(mu = mu, sigmas = list(variance), skew = skew, nu = nu))
+
+  interpoint_dist(unclass(U))
+}
+
+library(furrr)
+plan(multisession, workers = 4)
+
+res <- future_map_dfr(1:500, sim_interdistance, .progress = TRUE, 
+                      .options = furrr_options(seed = TRUE))
+
+mean(res$p_Q1 < 0.05)
+mean(res$p_Q2 < 0.05)
+mean(res$p_Q3 < 0.05)
+
+ggplot() +
+  geom_histogram(aes(x = res$p_Q1), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+  geom_vline(xintercept = 0.05, color = "red", lty = 2) +
+  labs(x = "p-value for Q1", y = "Count") +
+ggplot() +
+  geom_histogram(aes(x = res$p_Q2), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+  geom_vline(xintercept = 0.05, color = "red", lty = 2) +
+  labs(x = "p-value for Q2", y = "Count") +
+  ggplot() +
+geom_histogram(aes(x = res$p_Q3), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+  geom_vline(xintercept = 0.05, color = "red", lty = 2) +
+  labs(x = "p-value for Q3", y = "Count") 
+```
+
+
+We can repeat this diagnostic with the purposefully incorrect variance. Now, we expect the test to reject frequently as the specified distribution model is not accurate. This means the Rosenblatt transformation is not able to fully transform the data back into a 2-dimentional uniform on the unit hypercube. As expected, the test rejects every single time as the data is not uniform. 
+```{r}
+sim_interdistance_wrong <- function(i) {
+  new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
+                       skew = skew, nu = nu)
+
+
+  U_wrong <- tensor_rosenblatt(draws = new_draws, model = "skewt",
+                                parameters = list(mu = mu, sigmas = list(wrong_variance), 
+                                skew = skew, nu = nu))
+
+  interpoint_dist(unclass(U_wrong))
+}
+
+res_wrong <- future_map_dfr(1:500, sim_interdistance_wrong, .progress = TRUE, 
+                            .options = furrr_options(seed = TRUE))
+
+c(Q1_reject = mean(res_wrong$p_Q1 < 0.05),
+  Q2_reject = mean(res_wrong$p_Q2 < 0.05),
+  Q3_reject = mean(res_wrong$p_Q3 < 0.05)) 
+```
 
 
 # Uniformity test for each marginal
-```{r, eval = FALSE}
-p_marginal <- apply(U_wrong, 2, function(u) {
-  ks.test(u, "punif")$p.value
-})
+```{r}
+test_marginal <- function(draws) {
+  d_dims <- length(dim(draws))
 
-p_adjusted <- p.adjust(p_marginal, method = "BH")
+  draws_array <- unclass(draws)
 
-p_adjusted
+  p_marginal <- apply(draws_array, MARGIN = 2:d_dims, 
+                      FUN = function(z) ks.test(z, "punif", min = 0, max = 1)$p.value)
 
-cor(U, method = "spearman")
+  p.adjust(p_marginal, method = "BH")                    
+}
+
+test_marginal(res_whitened)
+
+test_marginal(res_whitened_wrong)
+
+cor(res_whitened, method = "spearman")
+
+cor(res_whitened_wrong, method = "spearman")
+
+cor.test(
+  res_whitened_wrong[, 1],
+  res_whitened_wrong[, 2],
+  method = "spearman",
+  exact = FALSE
+)
 ``` 
--->
