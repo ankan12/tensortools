@@ -434,19 +434,26 @@ Since the mean $\bar{\delta}$ and the variance $\bar{S}$ of asymptotically norma
 This method has been implemented in the package `SHT` (Statistical Hypothesis Testing Toolbox) as the function `unif.2017YMi`. However, it is inefficient as it constructs the entire $n \times n$ matrix of pairwise distances. The rewritten function below instead takes advantage of vectorized operations to be significantly faster. 
 ```{r}
 interpoint_dist <- function(X) {
-  n <- dim(X)[1]
-  d <- dim(X)[2]
+  X_array <- if (inherits(X, "tensor")) unclass(X) else X
+  X_dims <- dim(X_array)
+
+  if (is.null(X_dims) || length(X_dims) < 2L) {
+    stop("X must be a matrix or an array with observations on its first axis.")
+  }
+
+  n <- X_dims[1L]
+  d <- prod(X_dims[-1L])
 
   if (n < 2 || d < 2)
     stop("Need at least two observations and two dimensions.")
 
-  X_mat <- matrix(unclass(X), nrow = n, ncol = d) #matricize data
+  X_mat <- matrix(as.numeric(X_array), nrow = n, ncol = d) # matricize data
 
   pairs <- choose(n, 2) #every possible combination
+  fac <- 1 / pairs
   
   values_sq <- rowSums(X_mat^2) #computes x_{i}^2, each obs squared
   obs <- colSums(X_mat) #computes x_{ik}, total of coord across all samples
-  cross <- crossprod(X_mat) #computes x_{ik} x_{il}, vary across coord and samples
 
   # Sum of squared pairwise distances
   sum_pairwise <- n * sum(values_sq) - sum(obs^2)
@@ -455,30 +462,40 @@ interpoint_dist <- function(X) {
   values_four <- sum(values_sq^2)
   v <- drop(crossprod(values_sq, X_mat))
 
+  # Only the squared Frobenius norm is needed.  Use the smaller Gram matrix:
+  # ||X'X||_F^2 = ||XX'||_F^2.
+  cross_sq <- if (d <= n) {
+    cross <- crossprod(X_mat)
+    sum(cross * cross)
+  } else {
+    gram_obs <- tcrossprod(X_mat)
+    sum(gram_obs * gram_obs)
+  }
+
   S2 <- (n - 2) * values_four + sum(values_sq)^2 -
         4 * (sum(obs * v) - values_four) +
-        2 * (sum(cross * cross) - values_four)
+        2 * (cross_sq - values_four)
 
-  q1.top <-  sum_pairwise/pairs
+  q1_num <- fac * sum_pairwise
 
   c <- d / 6
   
-  q2.top <- (S2 - 2 * c * sum_pairwise + pairs * c^2)/pairs
+  q2_num <- fac * (S2 - 2 * c * sum_pairwise + pairs * c^2)
 
-  q1.bot <- d * (2 * n + 3) / (90 * n * (n - 1))
+  q1_denom <- d * (2 * n + 3) / (90 * n * (n - 1))
 
-    q2.bot <- if (d == 2) {
-    ((989 + 202 * (n - 2)) / 56700)/pairs
+    q2_denom <- if (d == 2) {
+    ((989 + 202 * (n - 2)) / 56700) * fac
   } else if (d == 3) {
-    ((37 + 6 * (n - 2)) / 1050)/pairs
+    ((37 + 6 * (n - 2)) / 1050) * fac
   } else {
     (49 * d^2 / 16200 +
      101 * d / 37800 +
-     2 * (n - 2) * (d^2 / 16200 + 29 * d / 37800))/pairs
+     2 * (n - 2) * (d^2 / 16200 + 29 * d / 37800)) * fac
   }
 
-  Q1 <- (q1.top - d / 6)^2 / q1.bot
-  Q2 <- (q2.top - 7 * d / 180)^2 / q2.bot
+  Q1 <- (q1_num - d / 6)^2 / q1_denom
+  Q2 <- (q2_num - 7 * d / 180)^2 / q2_denom
   Q3 <- Q1 + Q2
 
   tibble(Q1 = Q1, Q2 = Q2, Q3 = Q3, 
@@ -487,7 +504,7 @@ interpoint_dist <- function(X) {
          p_Q3 = pchisq(Q3, df = 2, lower.tail = FALSE))
 }
 
-bench::mark(unname(unif.2017YMi(res_whitened, "Q1")$statistic), 
+bench::mark(unname(SHT::unif.2017YMi(res_whitened, "Q1")$statistic), 
                    interpoint_dist(res_whitened)$Q1)
 ```
 
@@ -554,9 +571,9 @@ plan(multisession, workers = 4)
 res <- future_map_dfr(1:500, sim_interdistance, .progress = TRUE, 
                       .options = furrr_options(seed = TRUE))
 
-mean(res$p_Q1 < 0.05)
-mean(res$p_Q2 < 0.05)
-mean(res$p_Q3 < 0.05)
+c(Q1_reject = mean(res$p_Q1 < 0.05),
+  Q2_reject = mean(res$p_Q2 < 0.05),
+  Q3_reject = mean(res$p_Q3 < 0.05))
 
 ggplot() +
   geom_histogram(aes(x = res$p_Q1), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
@@ -573,7 +590,7 @@ geom_histogram(aes(x = res$p_Q3), binwidth = 0.05, boundary = 0, color = "black"
 ```
 
 
-We can repeat this diagnostic with the purposefully incorrect variance. Now, we expect the test to reject frequently as the specified distribution model is not accurate. This means the Rosenblatt transformation is not able to fully transform the data back into a 2-dimentional uniform on the unit hypercube. As expected, the test rejects every single time as the data is not uniform. 
+We can repeat this diagnostic with the purposefully incorrect variance. Now, we expect the test to reject frequently as the specified distribution model is not accurate. This means the Rosenblatt transformation is not able to fully transform the data back into a 2-dimensional uniform on the unit hypercube. As expected, the test rejects every single time as the data is not uniform. 
 ```{r}
 sim_interdistance_wrong <- function(i) {
   new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
@@ -597,6 +614,8 @@ c(Q1_reject = mean(res_wrong$p_Q1 < 0.05),
 
 
 # Uniformity test for each marginal
+
+The interpoint distance assesses whether the joint distribution of the Rosenblatt transformed draws are uniform on the $d$-dimensional unit hypercube. However, we also want to know if they are marginally distributed as Uniform(0, 1) and mutually independent.
 ```{r}
 test_marginal <- function(draws) {
   d_dims <- length(dim(draws))
@@ -606,21 +625,25 @@ test_marginal <- function(draws) {
   p_marginal <- apply(draws_array, MARGIN = 2:d_dims, 
                       FUN = function(z) ks.test(z, "punif", min = 0, max = 1)$p.value)
 
+  # adjust for multiple comparisons
   p.adjust(p_marginal, method = "BH")                    
 }
 
 test_marginal(res_whitened)
 
 test_marginal(res_whitened_wrong)
-
-cor(res_whitened, method = "spearman")
-
-cor(res_whitened_wrong, method = "spearman")
-
-cor.test(
-  res_whitened_wrong[, 1],
-  res_whitened_wrong[, 2],
-  method = "spearman",
-  exact = FALSE
-)
 ``` 
+
+
+## Account for MLEs
+When running the interpoint distance test and the marginal tests, we used the true parameters used to simulate the data. However, in practice, we would not know these. Instead, we would use the MLEs which are computed from the EM algorithm. This requires an adjustment to the test statistic. 
+
+The interpoint distance is an order-two U-statistic. U-statistics are statistics that average a function applied to all tuples of a fixed size. It is an order-two statistic since it is averaging the Euclidean distance, which is a square function. 
+
+So the function is defined as 
+
+$$h_{1}(X_{i}, X_{j}) = ||X_{i} - X_{j}||^{2}$$
+
+And then the interpoint distance is 
+
+$$\hat{\delta} = {n \choose  2}^{-1} \sum_{i < j} $$
