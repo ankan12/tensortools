@@ -1,6 +1,12 @@
 ---
 title: "Rosenblatt Derivation"
-format: html
+format:
+  html:
+    code-fold: true
+    code-summary: "Show code"
+    code-tools: true
+execute: 
+  cache: true
 ---
 
 \newcommand{\coleq}{\mathrel{\mathop:}=}
@@ -98,6 +104,8 @@ $$
 Then, we can apply this CDF to the draws. If the model is correct, $U \sim \text{Uniform}(0, 1)$. 
 
 ```{r}
+#| code-summary: Generate 1e4 univariate skew-t draws
+
 nu <- 4 # generate univariate values
 mu <- 1
 variance <- 2
@@ -128,7 +136,9 @@ dtskewt_vec <- function(x, mu, skew, sigmas, nu, log = FALSE) {
 
 
 Below, you can see the plot of the skewed-t distribution. The randomly generated draws are plotted with an overlay of the expected distribution. 
-```{r}
+```{r, warning = FALSE}
+#| code-summary: Plot skewed-t draws with expected distribution
+
 ggplot() +
   geom_histogram(aes(x = univar_skewt, y = after_stat(density)),
                      bins = 200) +
@@ -143,6 +153,8 @@ ggplot() +
 
 We can apply the Rosenblatt transformation to transform the draws from the skewed-t distribution to a uniform. Since these draws are univariate, the Rosenblatt is identical to the Probability Integral Transformation in this case. We apply the CDF to the draws to obtain a uniform. 
 ```{r}
+#| code-summary: Apply Rosenblatt transform to univar bivar skewt
+
 skew_t_cdf <- function(x, mu, variance, skew, nu) {
   shape <- nu/2
   rate <- nu/2
@@ -192,6 +204,8 @@ Now we need the Rosenblatt to compute $U_{1} = F_{X_{1}}(x_{1})$ and $U_{2} = F_
 First, consider $X_{1}$. Conditional on $W = w, X_{1}|W = w \sim N(\mu_{1} + w a_{1}, w \sigma_{1}^{2})$. This is the same as the univariate case we defined above. 
 
 ```{r}
+#| code-summary: Generate 1e4 bivariate skew-t draws
+
 nu <- 4 # generate bivariate values
 mu <- c(1, 2)
 variance <- matrix(data = c(1, 0.5, 0.5, 3), nrow = 2)
@@ -216,6 +230,8 @@ $$F_{X_{2}|X_{1}}(x_{2}|x_{1}) = \int_{0}^{\infty} F_{X_{2}|X_{1}, W)}(x_{2}|x_{
 We can apply the CDF to the draws. If the model is correct, they should become Uniform(0, 1). 
 
 ```{r}
+#| code-summary: Apply Rosenblatt to bivariate skew-t draws
+
 n <- n_draws(bivar_skewt)
 
 L <- t(chol(variance))
@@ -283,6 +299,8 @@ res_whitened <- cbind(u1 = u1, u2 = u2)
 
 In the plots below, we can see how the Rosenblatt transformation works. The first plot contains the original draws. The second plot is after the Rosenblatt has transformed $X_{1}$ into $U_{1}$, which should now be uniformly distributed along that 1st dimension. The third plot is after the Rosenblatt has transformed $X_{2}$ into $U_{2}$. Now all of the points are uniformly distributed in the space $\mathbb{R}^{2}$.
 ```{r}
+#| code-summary: Plot Rosenblatt applied to $X_{1}$ and $X_{2}$ 
+
 draws_orig <- tibble(x1 = rep(0, 1e4), x2 = rep(0, 1e4))
 
 for(i in 1:1e4) {
@@ -321,6 +339,8 @@ $$
 
 Now, we replace $\Sigma_{1, 1}$ with 3. 
 ```{r}
+#| code-summary: Apply Rosenblatt with wrong $\Sigma_{1, 1}$ to bivariate skew-t draws
+
 #true variance: c(1, 0.5, 0.5, 3)
 #replace true parameter value
 wrong_variance <- matrix(data = c(3, 0.5, 0.5, 3), nrow = 2)
@@ -368,6 +388,8 @@ res_whitened_wrong <- cbind(u1 = u1_wrong, u2 = u2_wrong)
 
 Below is the effect of applying the Rosenblatt distribution with the incorrect variance term. The final draws plotted in the $U_{1}$ by $U_{2}$ are not uniform across the space $\mathbb{R}^{2}$.
 ```{r}
+#| code-summary: Plot Rosenblatt with incorrect $\Sigma_{1, 1}$ applied to $X_{1}$ and $X_{2}$ 
+
 (draws_orig |> 
   ggplot() +
   geom_point(aes(x = x1, y = x2), size = 0.6, alpha = 0.25) +
@@ -433,6 +455,8 @@ Since the mean $\bar{\delta}$ and the variance $\bar{S}$ of asymptotically norma
 
 This method has been implemented in the package `SHT` (Statistical Hypothesis Testing Toolbox) as the function `unif.2017YMi`. However, it is inefficient as it constructs the entire $n \times n$ matrix of pairwise distances. The rewritten function below instead takes advantage of vectorized operations to be significantly faster. 
 ```{r}
+#| code-summary: Define an interpoint distances function
+
 interpoint_dist <- function(X) {
   X_array <- if (inherits(X, "tensor")) unclass(X) else X
   X_dims <- dim(X_array)
@@ -511,7 +535,9 @@ bench::mark(unname(SHT::unif.2017YMi(res_whitened, "Q1")$statistic),
 
 First, we can test that this metric works when we generate truly uniform values. As expected, the rejection rate is about 0.05. However, $Q_{3}$ had a slightly higher rejection rate. $Q_{1}$ and $Q_{2}$ are both asymptotically distributed as a $\chi_{1}^{2}$. $Q_{3}$ is defined as the sum of $Q_{1}$ and $Q_{2}$, so it depends on the joint behavior. This may lead to the finite-sample distribution of $Q_{3}$ to derivate from its asympotitic distribution of $\chi_{2}^{2}$. Due to this behavior, I will use the $p$-values from $Q_{1}$ and $Q_{2}$ as the main diagnostic values for rejection, but will still report $Q_{3}$ in case it is of interest.  
 
-```{r}
+```{r, eval = FALSE}
+#| code-summary: Test interpoint distances on truly uniform data
+
 sim_uniform <- function(i) {
   p <- length(mu)
 
@@ -525,6 +551,14 @@ sim_uniform <- function(i) {
 }
 
 res_uniform <- map_dfr(1:1e4, sim_uniform)
+
+saveRDS(res_uniform, "res_uniform_interpoint.rds")
+```
+
+```{r, warning = FALSE}
+#| code-summary: Report Type I error on truly uniform data
+
+res_uniform <- readRDS("res_uniform_interpoint.rds")
 
 c(Q1_reject = mean(res_uniform$p_Q1 < 0.05),
   Q2_reject = mean(res_uniform$p_Q2 < 0.05),
@@ -552,8 +586,11 @@ res_uniform |>
     theme_minimal() 
 ```
 
+
 We can run a simulation now where we generate bivariate skewed t values, apply the Rosenblatt transformation with the true parameters, and then compute our test statistic using the interpoint distances. The rejection rate is nominal, with about 5% of samples being rejected. 
-```{r}
+```{r, eval = FALSE}
+#| code-summary: Test interpoint distances on bivariate skew-t data with true parameters
+
 sim_interdistance <- function(i) {
   new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
                        skew = skew, nu = nu)
@@ -566,32 +603,42 @@ sim_interdistance <- function(i) {
 }
 
 library(furrr)
-plan(multisession, workers = 4)
+plan(multisession, workers = 8)
 
-res <- future_map_dfr(1:500, sim_interdistance, .progress = TRUE, 
+res_skewt_params <- future_map_dfr(1:500, sim_interdistance, .progress = TRUE, 
                       .options = furrr_options(seed = TRUE))
 
-c(Q1_reject = mean(res$p_Q1 < 0.05),
-  Q2_reject = mean(res$p_Q2 < 0.05),
-  Q3_reject = mean(res$p_Q3 < 0.05))
+saveRDS(res_skewt_params, "res_skewt_params.rds")
+```
+
+```{r}
+#| code-summary: Report Type I error on bivariate skew-t data with true parameters
+
+res_skewt_params <- readRDS("res_skewt_params.rds")
+
+c(Q1_reject = mean(res_skewt_params$p_Q1 < 0.05),
+  Q2_reject = mean(res_skewt_params$p_Q2 < 0.05),
+  Q3_reject = mean(res_skewt_params$p_Q3 < 0.05))
 
 ggplot() +
-  geom_histogram(aes(x = res$p_Q1), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+  geom_histogram(aes(x = res_skewt_params$p_Q1), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
   geom_vline(xintercept = 0.05, color = "red", lty = 2) +
   labs(x = "p-value for Q1", y = "Count") +
 ggplot() +
-  geom_histogram(aes(x = res$p_Q2), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+  geom_histogram(aes(x = res_skewt_params$p_Q2), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
   geom_vline(xintercept = 0.05, color = "red", lty = 2) +
   labs(x = "p-value for Q2", y = "Count") +
   ggplot() +
-geom_histogram(aes(x = res$p_Q3), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
+geom_histogram(aes(x = res_skewt_params$p_Q3), binwidth = 0.05, boundary = 0, color = "black", fill = "white") +
   geom_vline(xintercept = 0.05, color = "red", lty = 2) +
   labs(x = "p-value for Q3", y = "Count") 
 ```
 
 
 We can repeat this diagnostic with the purposefully incorrect variance. Now, we expect the test to reject frequently as the specified distribution model is not accurate. This means the Rosenblatt transformation is not able to fully transform the data back into a 2-dimensional uniform on the unit hypercube. As expected, the test rejects every single time as the data is not uniform. 
-```{r}
+```{r, eval = FALSE}
+#| code-summary: Test interpoint distances on bivariate skew-t data with wrong variance
+
 sim_interdistance_wrong <- function(i) {
   new_draws <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance), 
                        skew = skew, nu = nu)
@@ -604,12 +651,19 @@ sim_interdistance_wrong <- function(i) {
   interpoint_dist(unclass(U_wrong))
 }
 
-res_wrong <- future_map_dfr(1:500, sim_interdistance_wrong, .progress = TRUE, 
-                            .options = furrr_options(seed = TRUE))
+res_skewt_wrong <- future_map_dfr(1:500, sim_interdistance_wrong, 
+                                  .progress = TRUE, .options = furrr_options(seed = TRUE))
 
-c(Q1_reject = mean(res_wrong$p_Q1 < 0.05),
-  Q2_reject = mean(res_wrong$p_Q2 < 0.05),
-  Q3_reject = mean(res_wrong$p_Q3 < 0.05)) 
+saveRDS(res_skewt_wrong, "res_skewt_wrong.rds")                            
+```
+
+```{r}
+#| code-summary: Report Type I error on bivariate skew-t with wrong variance
+res_skewt_wrong <- readRDS("res_skewt_wrong.rds")                            
+
+c(Q1_reject = mean(res_skewt_wrong$p_Q1 < 0.05),
+  Q2_reject = mean(res_skewt_wrong$p_Q2 < 0.05),
+  Q3_reject = mean(res_skewt_wrong$p_Q3 < 0.05)) 
 ```
 
 
@@ -617,6 +671,8 @@ c(Q1_reject = mean(res_wrong$p_Q1 < 0.05),
 
 The interpoint distance assesses whether the joint distribution of the Rosenblatt transformed draws are uniform on the $d$-dimensional unit hypercube. However, we also want to know if they are marginally distributed as Uniform(0, 1) and mutually independent.
 ```{r}
+#| code-summary: Test marginal uniform
+
 test_marginal <- function(draws) {
   d_dims <- length(dim(draws))
 
@@ -646,4 +702,231 @@ $$h_{1}(X_{i}, X_{j}) = ||X_{i} - X_{j}||^{2}$$
 
 And then the interpoint distance is 
 
-$$\hat{\delta} = {n \choose  2}^{-1} \sum_{i < j} $$
+$$\hat{\delta} = {n \choose  2}^{-1} \sum_{i < j} h_{1}(X_{i}, X_{j})$$
+
+## Step by step process
+
+Let us say that $X_{1}, \dots, X_{n} \sim$ Tensor Variate Skewed T($\mathcal{M}, \mathcal{A}, \bigotimes_{i=1}^{d} \Sigma_{i}, \nu$).
+
+1. We use `tensor_mle` to obtain the MLEs, denoted as $\hat{\theta}$.
+2. Compute the information matrix for $\hat{\theta}$.
+3. Apply the Rosenblatt transformation to remove the independence structure, transforming the draws to uniform. 
+4. Compute the regular interpoint distances with no adjustment yet.
+5. Calculate the first-order projections. 
+6. Estimate the corrected covariances.
+7. From the adjusted test statistic. 
+
+
+
+```{r}
+#| code-summary: Define adjusted interpoint distances for MLE correction
+
+# Accumulate the score cross-products needed for the MLE correction.
+# Only one score chunk is held in memory at a time.
+tensor_score_crossproducts <- function(draws, Z, fit,
+                                       model = "skewt",
+                                       chunk_size = 256L) {
+  model <- match.arg(model, c("normal", "skewt", "vargamma",
+                              "invgauss", "genhyper"))
+  n <- n_draws(draws)
+  q <- prod(draw_shape(draws))
+
+  if (!is.matrix(Z) || nrow(Z) != n || ncol(Z) != q) {
+    stop("Z must be an n x prod(draw_shape(draws)) matrix.")
+  }
+  if (length(chunk_size) != 1L || !is.finite(chunk_size) ||
+      chunk_size < 1L || chunk_size != as.integer(chunk_size)) {
+    stop("chunk_size must be one positive integer.")
+  }
+  chunk_size <- as.integer(chunk_size)
+
+  # Retain only sums needed for H, G, and I.
+  sum_a <- 0
+  sum_a2 <- 0
+  sum_s <- NULL
+  sum_as <- NULL
+  sum_ss <- NULL
+
+  for (start in seq.int(1L, n, by = chunk_size)) {
+    end <- min(start + chunk_size - 1L, n)
+    index <- start:end
+
+    # Scores are calculated only for this chunk.
+    score_chunk <- tensor_scores(
+      draws = slice_draws(draws, index),
+      model = model,
+      fit = fit
+    )
+    score_chunk <- as.matrix(score_chunk)
+
+    # First-order projection for Q1.
+    z_chunk <- Z[index, , drop = FALSE]
+    a_chunk <- rowSums(z_chunk^2 - z_chunk + 1 / 6)
+
+    if (is.null(sum_s)) {
+      p <- ncol(score_chunk)
+      sum_s <- numeric(p)
+      sum_as <- numeric(p)
+      sum_ss <- matrix(0, nrow = p, ncol = p)
+    }
+
+    sum_a <- sum_a + sum(a_chunk)
+    sum_a2 <- sum_a2 + sum(a_chunk^2)
+    sum_s <- sum_s + colSums(score_chunk)
+    sum_as <- sum_as + drop(crossprod(a_chunk, score_chunk))
+    sum_ss <- sum_ss + crossprod(score_chunk)
+  }
+
+  # Center by moment identities without making a second pass.
+  mean_a <- sum_a / n
+  mean_s <- sum_s / n
+
+  H_hat <- sum_a2 / n - mean_a^2
+  G_hat <- sum_as / n - mean_a * mean_s
+  I_hat <- sum_ss / n - tcrossprod(mean_s)
+  I_hat <- (I_hat + t(I_hat)) / 2
+
+  list(H = H_hat, G = G_hat, I = I_hat)
+}
+
+adjusted_q1 <- function(draws, theta_hat,
+                        rosenblatt_fun,
+                        model = "skewt",
+                        chunk_size = 256L,
+                        U = NULL,
+                        n_draws_fun = n_draws) {
+  n <- n_draws_fun(draws)
+
+  # Reuse precomputed Rosenblatt values when available.
+  if (is.null(U)) {
+    U <- rosenblatt_fun(draws, theta_hat)
+  }
+
+  Z <- matrix(unclass(U), nrow = n)
+  q <- ncol(Z)
+
+  # Raw Q1 U-statistic: mean squared pairwise distance minus q/6.
+  row_sq <- rowSums(Z^2)
+  pair_sum <- n * sum(row_sq) - sum(colSums(Z)^2)
+  U1 <- pair_sum / choose(n, 2) - q / 6
+
+  moments <- tensor_score_crossproducts(
+    draws = draws,
+    Z = Z,
+    fit = theta_hat,
+    model = model,
+    chunk_size = chunk_size
+  )
+
+  # MLE-adjusted covariance; nu = 2 for pairwise interpoint distances.
+  beta <- tryCatch(
+    solve(moments$I, moments$G),
+    error = function(e) {
+      stop("The information matrix is singular or ill-conditioned.")
+    }
+  )
+  Sigma_hat <- 4 * (moments$H - sum(moments$G * beta))
+
+  if (!is.finite(Sigma_hat) || Sigma_hat <= 0) {
+    stop("Estimated adjusted variance is not positive.")
+  }
+
+  statistic <- n * U1^2 / Sigma_hat
+
+  list(
+    U1 = U1,
+    variance_adjusted = Sigma_hat,
+    statistic = statistic,
+    p.value = pchisq(statistic, df = 1, lower.tail = FALSE)
+  )
+}
+
+rosenblatt_fun <- function(draws, fit) {
+  tensor_rosenblatt(
+    draws = draws,
+    model = "skewt",
+    parameters = fit
+  )
+}
+
+score_fun <- function(draws, fit) {
+  tensor_scores(
+    draws = draws,
+    model = "skewt",
+    fit = fit
+  )
+}
+```
+
+```{r}
+#| code-summary: Compute Q1 and adjusted Q1 for bivariate skew-t using MLEs
+
+compute_p_mle <- function(i) {
+  bivar_skewt <- rtskewt(n = 1e3, mu = mu, sigmas = list(variance),
+                       skew = skew, nu = nu)
+
+  theta_hat <- tensor_mle(bivar_skewt, model = "skewt",
+                          tol = 1e-6)
+
+  # Rosenblatt transform to uniform
+  U_hat <- rosenblatt_fun(bivar_skewt, theta_hat)
+
+  # unadjusted for MLEs
+  unadj <- interpoint_dist(unclass(U_hat))
+
+  # adjusted for MLEs
+  result <- adjusted_q1(
+    draws = bivar_skewt,
+    theta_hat = theta_hat,
+    #rosenblatt_fun = rosenblatt_fun,
+    model = "skewt",
+    chunk_size = 256L,
+    U = U_hat
+  )
+
+  tibble(i = i, q1_unadj = unadj$Q1, p_unadj = unadj$p_Q1,
+         q1_adj = result$statistic, p_adj = result$p.value)
+}
+```
+
+```{r, eval = FALSE}
+#| code-summary: Parallelize simulation for speed
+
+library(furrr)
+
+plan(multisession, workers = 10)
+
+res_skewt_MLEs <- future_map_dfr(1:500, compute_p_mle, 
+                                 .progress = TRUE, .options = furrr_options(seed = TRUE))
+```
+
+```{r}
+#| code-summary: Report Type I error on bivariate skew-t with MLEs
+
+res_skewt_MLEs <- readRDS("res_skewt_MLEs.rds")
+
+c(rej_unadj = mean(res_skewt_MLEs$p_unadj < 0.05),
+  rej_adj = mean(res_skewt_MLEs$p_adj < 0.05))
+
+res_skewt_MLEs |> 
+  pivot_longer(cols = c("p_unadj", "p_adj")) |> 
+  ggplot() +
+  geom_histogram(aes(x = value), fill = "white", color = "black", binwidth = 0.05) +
+  facet_wrap(~name) +
+  theme_minimal()
+
+res_skewt_MLEs |> 
+  ggplot() +
+    geom_histogram(aes(x = q1_unadj, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
+    xlim(c(quantile(res_skewt_MLEs$q1_unadj, 0.05), quantile(res_skewt_MLEs$q1_unadj, 0.95))) +
+    labs(x = "Q1_unadjusted", y = "Density") +
+    theme_minimal() +
+res_skewt_MLEs |> 
+  ggplot() +
+    geom_histogram(aes(x = q1_adj, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
+    xlim(c(quantile(res_skewt_MLEs$q1_adj, 0.05), quantile(res_skewt_MLEs$q1_adj, 0.95))) +
+    labs(x = "Q1_adjusted", y = "Density") +
+    theme_minimal() 
+```
