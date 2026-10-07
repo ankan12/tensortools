@@ -5,8 +5,6 @@ format:
     code-fold: true
     code-summary: "Show code"
     code-tools: true
-execute: 
-  cache: true
 ---
 
 \newcommand{\coleq}{\mathrel{\mathop:}=}
@@ -21,7 +19,7 @@ execute:
 \newcommand{\vs}[1]{\mathcal{#1}}
 \newcommand{\mn}[2]{\sideset{_{#1}}{_{#2}}{\mathop{\boldsymbol{\times}}}}
 
-```{r, message = FALSE, echo = FALSE}
+```{r, message = FALSE, echo = FALSE, warning = FALSE}
 library(tidyverse)
 library(tensortools)
 library(invgamma)
@@ -37,7 +35,7 @@ The Rosenblatt transformation is the multivariate extension of the probability i
 Let
 
 $$
-X=(X_1,\ldots,X_p)^{T}
+\mathbf{X}=(X_1,\ldots,X_p)^{T}
 $$
 
 be a continuous random vector with joint distribution function $F(x_1, \dots, x_k)$. 
@@ -296,6 +294,7 @@ u2 <- vapply(
 
 res_whitened <- cbind(u1 = u1, u2 = u2)
 ```
+
 
 In the plots below, we can see how the Rosenblatt transformation works. The first plot contains the original draws. The second plot is after the Rosenblatt has transformed $X_{1}$ into $U_{1}$, which should now be uniformly distributed along that 1st dimension. The third plot is after the Rosenblatt has transformed $X_{2}$ into $U_{2}$. Now all of the points are uniformly distributed in the space $\mathbb{R}^{2}$.
 ```{r}
@@ -900,7 +899,7 @@ res_skewt_MLEs <- future_map_dfr(1:500, compute_p_mle,
                                  .progress = TRUE, .options = furrr_options(seed = TRUE))
 ```
 
-```{r}
+```{r, warning = FALSE}
 #| code-summary: Report Type I error on bivariate skew-t with MLEs
 
 res_skewt_MLEs <- readRDS("res_skewt_MLEs.rds")
@@ -917,16 +916,212 @@ res_skewt_MLEs |>
 
 res_skewt_MLEs |> 
   ggplot() +
-    geom_histogram(aes(x = q1_unadj, y = after_stat(density)), bins = 200) +
-    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
-    xlim(c(quantile(res_skewt_MLEs$q1_unadj, 0.05), quantile(res_skewt_MLEs$q1_unadj, 0.95))) +
-    labs(x = "Q1_unadjusted", y = "Density") +
-    theme_minimal() +
-res_skewt_MLEs |> 
-  ggplot() +
     geom_histogram(aes(x = q1_adj, y = after_stat(density)), bins = 200) +
     geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
     xlim(c(quantile(res_skewt_MLEs$q1_adj, 0.05), quantile(res_skewt_MLEs$q1_adj, 0.95))) +
     labs(x = "Q1_adjusted", y = "Density") +
+    theme_minimal() +
+res_skewt_MLEs |> 
+  ggplot() +
+    geom_histogram(aes(x = q1_unadj, y = after_stat(density)), bins = 200) +
+    geom_function(fun = dchisq, args = list(df = 1), color = "red", lty = 2) +
+    xlim(c(quantile(res_skewt_MLEs$q1_unadj, 0.05), quantile(res_skewt_MLEs$q1_unadj, 0.95))) +
+    labs(x = "Q1_unadjusted", y = "Density") +
     theme_minimal() 
+```
+
+## Appendix
+
+### Interpoint Distances
+
+Let $\mathbf{X}_{1}, \dots \mathbf{X}_{n} \overset{\text{iid}}{\sim} U([0, 1]^{d})$
+
+We define the interpoint distances as
+
+$$D_{ij} = ||\mathbf{X}_{i} - \mathbf{X}_{j}||^2 = \sum_{k=1}^{d} (X_{ik} - X_{jk})^{2}$$
+
+The sample mean of all the interpoint distances is 
+
+$$\hat{\delta} = \frac{1}{n \choose 2} \sum_{i < j}^{n} ||\mathbf{X}_{i} - \mathbf{X}_{j}||^2$$
+
+To find Var($D_{ij}$), we need E[$D_{ij}$] and E[$D_{ij}^{2}$]. 
+
+$$E[D_{ij}] = E\left[\sum_{k=1}^{d} (X_{ik} - X_{jk})^{2}\right] = \sum_{k=1}^{d} E[X_{ik}^{2} - 2 X_{ik} X_{jk} + X_{jk}^2]$$ 
+
+For a Uniform, 
+
+$$E[X] = \int_{0}^{1} x f(x) dx = \left[\frac{x^2}{2}\right]_{0}^{1} = \frac{1}{2}$$
+
+$$E[X^{2}] = \int_{0}^{1} x^2 f(x) dx = \left[\frac{x^3}{3}\right]_{0}^{1} = \frac{1}{3}$$
+
+We are assuming that $\mathbf{X}_{i}, \dots \mathbf{X}_{n}$ are independent so 
+
+$$
+\begin{aligned}
+&\sum_{k=1}^{d} E[X_{ik}^{2} - 2 X_{ik} X_{jk} + X_{jk}^2] 
+\\&= \sum_{k=1}^{d} \left[\frac{1}{3} - 2 \left(\frac{1}{2}\right) \left(\frac{1}{2}\right) + \frac{1}{3}\right] 
+\\&= \sum_{k=1}^{d} \left(\frac{2}{3} - \frac{1}{2}\right) 
+\\&= \sum_{k=1}^{d} \frac{1}{6} = \frac{d}{6}
+\end{aligned}
+$$ 
+
+
+So we can obtain $E[\hat{\delta}]$.
+
+$$
+\begin{aligned}
+E[\hat{\delta}] &= E\left[\frac{1}{n \choose 2} \sum_{i < j}^{n} ||\mathbf{X}_{i} - \mathbf{X}_{j}||^2\right]
+\\&= \frac{1}{n \choose 2} \sum_{i < j}^{n}  E\left[||\mathbf{X}_{i} - \mathbf{X}_{j}||^2\right]
+\\&= \frac{1}{n \choose 2} {n \choose 2} \frac{d}{6} \\
+\\&= \frac{d}{6}
+
+\end{aligned}
+$$
+
+Now we are interested in the variance of this sample mean.
+
+$$
+\begin{aligned}
+\text{Var}(\hat{\delta}) &= \text{Var}\left(\frac{1}{n \choose 2} \sum_{i < j}^{n} ||\mathbf{X}_{i} - \mathbf{X}_{j}||^2\right) 
+\\&= \left(\frac{1}{n \choose 2}\right)^2 \left[ \sum_{i<j}^{n} \text{Var}(||X_{i} - X_{j}||^2) + 2 \sum_{(i < j) < (k < l)} \text{Cov}(||X_{i} - X_{j}||^2, ||X_{k} - X_{l}||^2)\right]
+\end{aligned}
+$$
+
+Now we first consider the variance. 
+
+$$
+\begin{aligned}
+\text{Var}(||X_{i} - X_{j}||^2) &= E[(||X_{i} - X_{j}||^2)^{2}] - \left[E(||X_{i} - X_{j}||^2)\right]^2
+\\&= E\left\{\left[\sum_{k=1}^{d} (X_{ik} - X_{jk})^{2}\right]^{2}\right\} - \frac{d}{6}^{2}
+\\&= \sum_{k=1}^{d} E[(X_{ik} - X_{jk})^{4}] + 2 \sum_{1 \le k < l \le d} E[(X_{ik} - X_{jk})^{2} (X_{il} - X_{jl})^{2}] - \frac{d}{6}^{2}
+\\&= \sum_{k=1}^{d} E[X_{ik}^{4} - 4 X_{ik}^{3} X_{jk} + 6 X_{ik}^{2} X_{jk}^{2} - 4 X_{ik} X_{jk}^{3} + X_{jk}^{4}] + 2 \sum_{1 \le k < l \le d} E[(X_{ik} - X_{jk})^{2} (X_{il} - X_{jl})^{2}] - \frac{d}{6}^{2}
+\\&= \sum_{k=1}^{d} \left[\frac{1}{5} - 4 \frac{1}{4} \frac{1}{2} + 6 \frac{1}{3} \frac{1}{3} - 4 \frac{1}{2} \frac{1}{4} + \frac{1}{5}\right] + 2 \sum_{1 \le k < l \le d} E[(X_{ik} - X_{jk})^{2} (X_{il} - X_{jl})^{2}] - \frac{d}{6}^{2}
+\\&= \frac{d}{15} + 2 \sum_{1 \le k < l \le d} E[(X_{ik} - X_{jk})^{2}]  E[(X_{il} - X_{jl})^{2}] - \frac{d}{6}^{2}
+\\&= \frac{d}{15} + 2 {d \choose 2} \frac{1}{6} \frac{1}{6} - \frac{d}{6}^{2}
+\\&= \frac{d}{15} + \frac{d(d-1)}{36} - \frac{d^{2}}{36} 
+\\&= \frac{12d + 5d(d-1) - 5d{^2}}{180}
+\\&= \frac{12d + 5d^{2} - 5d - 5d{^2}}{180}
+\\&= \frac{7d}{180}
+\end{aligned}
+$$
+
+Now we consider the covariance.
+
+$$
+\begin{aligned}
+&\sum_{(i < j) < (k < l)} \text{Cov}(||X_{i} - X_{j}||^2, ||X_{k} - X_{l}||^2) 
+\\&= \sum_{(i < j) < (k < l)} E\left[\left(||X_{i} - X_{j}||^2 - \frac{d}{6}\right) \left(||X_{k} - X_{l}||^2 - \frac{d}{6}\right)\right]
+\\&= \sum_{(i < j) < (k < l)} E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2 - \frac{d}{6}||X_{i} - X_{j}||^2 - \frac{d}{6} ||X_{k} - X_{l}||^2 + \frac{d^{2}}{36}\right]
+\\&= \sum_{(i < j) < (k < l)} \left\{ E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2\right] - \frac{d}{6} \frac{d}{6} - \frac{d}{6} \frac{d}{6} + \frac{d^{2}}{36}\right\}
+\\&= \sum_{(i < j) < (k < l)} \left\{ E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2\right] - \frac{d^{2}}{36}\right\}
+\\&= \sum_{(i < j) < (k < l)} \left\{ E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2\right] - \frac{d^{2}}{36}\right\}
+\end{aligned}
+$$
+
+There are 3 possible cases here. If $\{i, j\}$ does not overlap with $\{k, l\}$ then the covariance is 0. If $\{i, j\}$ is the same as $\{k, l\}$ then the points are the same and this is the variance. The final possibility is if one of the points overlap. Here, let us assume $X_{i}$ and $_{k}$ are the same. 
+
+$$
+\begin{aligned}
+&= \sum_{(i < j) < (k < l)} \left\{ E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2\right] - \frac{d^{2}}{36}\right\} \\
+&= \sum_{(i < j) < (k < l)} \left\{ E\left[||X_{i} - X_{j}||^2 ||X_{k} - X_{l}||^2\right] - \frac{d^{2}}{36}\right\} 
+\end{aligned}
+$$
+
+
+
+We can also compute the sample squared deviation from the hypothesized mean. 
+
+$$
+\begin{aligned}
+\text{Var}(D_{ij}) &= E[(D_{ij} - E(D_{ij}))^2]
+\\&= E\left[\left(||\mathbf{X}_{i} - \mathbf{X}_{j}||^2 - \frac{d}{6}\right)^2\right]
+\end{aligned}
+$$
+
+And we estimate this using an empirical estimator
+
+$$\hat{S} = \frac{1}{n \choose 2} \sum_{i < j}^{n} \left(||\mathbf{X}_{i} - \mathbf{X}_{j}||^{2} - \frac{d}{6}\right)^{2}$$.
+
+
+
+```{r, eval = FALSE}
+mu <- array(1:24, dim = c(2, 3, 4))
+s1 <- crossprod(matrix(rnorm(4), nrow = 2))
+s2 <- crossprod(matrix(rnorm(9), nrow = 3))
+s3 <- crossprod(matrix(rnorm(16), nrow = 4))
+sigmas <- list(s1, s2, s3)
+skew <- array((seq(from = 0, to = 1, length.out = 24)), dim = c(2, 3, 4))
+```
+
+```{r, eval = FALSE}
+test_tensor <- function(i) {
+
+  tensor_skewt <- rtskewt(n = 1e3, mu = mu, sigmas = sigmas, skew = skew) 
+
+  whitened_tensor <- tensor_rosenblatt(draws = tensor_skewt, model = "skewt",
+                                      parameters = list(mu = mu, sigmas = sigmas, skew = skew, nu = 4))
+
+  interpoint_dist(whitened_tensor)
+}
+
+library(furrr)
+
+plan(multisession, workers = 6)
+res <- future_map_dfr(1:100, test_tensor, .progress = TRUE,
+                      .options = furrr_options(seed = TRUE))
+
+ggplot() +
+  geom_histogram(aes(x = res$p_Q1))
+```
+
+```{r, eval = FALSE}
+# result <- adjusted_q1(
+#   draws = tensor_skewt,
+#   theta_hat = list(mu = mu, sigmas = sigmas, skew = skew, nu = 4),
+#   rosenblatt_fun = rosenblatt_fun,
+#   U = whitened_tensor
+# )
+
+result$p.value
+
+ggplot() +
+  geom_histogram(aes(x = whitened_tensor[, 1, 1, 1]))
+
+whitened_tensor[, 1, 1, 1]
+
+whitened_tensor[1, 1, 1, 1]
+
+
+ggplot() +
+  geom_point(aes)
+```
+
+```{r, eval = FALSE}
+library(plotly)
+
+U <- unclass(whitened_tensor)
+
+plot_data <- data.frame(
+  u1 = U[, 1, 1, 1],
+  u2 = U[, 1, 1, 2],
+  u3 = U[, 1, 1, 3]
+)
+
+plot_ly(
+  plot_data,
+  x = ~u1,
+  y = ~u2,
+  z = ~u3,
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 2, opacity = 0.25)
+) |>
+  layout(
+    scene = list(
+      xaxis = list(title = "U[1,1,1]", range = c(0, 1)),
+      yaxis = list(title = "U[1,1,2]", range = c(0, 1)),
+      zaxis = list(title = "U[1,1,3]", range = c(0, 1)),
+      aspectmode = "cube"
+    )
+  )
 ```
