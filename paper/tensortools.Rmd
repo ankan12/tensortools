@@ -21,7 +21,7 @@ header-includes:
       \usepackage{float}
       \usepackage{amsmath}
 abstract: >
-  tensortools is an R package for simulation, maximum likelihood estimation, and model diagnostics for tensor-variate distributions arising in multiway array data. The package implements the tensor-variate normal distribution and several normal variance–mean mixture families, including the skew-t, generalized hyperbolic, variance gamma, and normal inverse Gaussian distributions. Estimation is performed via likelihood-based and expectation–maximization algorithms under a Kronecker-separable covariance model, yielding mode-specific covariance estimates through iterative updates. Model assessment tools include comparisons of Mahalanobis distances computed from separable and unrestricted covariance estimates. In addition, tensortools provides implementations of widely used tensor decompositions for approximation and dimension reduction, including Tensor-Train decomposition via TT-SVD, Higher-Order Singular Value Decomposition (HOSVD), and Parallel Factor Analysis (CP/PARAFAC) computed using alternating least squares. It includes common linear algebra and tensor operations, such as matricization, the n-mode products, and the Khatri-Rao product.
+  tensortools is an R package for simulation, maximum likelihood estimation, and model diagnostics for tensor-variate distributions arising in multiway array data. The package implements the tensor-variate normal distribution and several normal variance–mean mixture families, including the skew-t, generalized hyperbolic, variance gamma, and normal inverse Gaussian distributions. Estimation is performed via likelihood-based and expectation–maximization algorithms under a Kronecker-separable covariance model, yielding mode-specific covariance estimates through iterative updates. Model assessment tools include comparisons of Mahalanobis distances computed from separable and unrestricted covariance estimates. In addition, tensortools provides implementations of widely used tensor decompositions for approximation and dimension reduction, including Tensor-Train decomposition via TT-SVD, Higher-Order Singular Value Decomposition (HOSVD), and Parallel Factor Analysis (CP/PARAFAC) computed using alternating least squares. The package also includes common linear algebra and tensor operations, such as matricization, the n-mode products, and the Khatri-Rao product.
 draft: true
 author:
   - name: "Anupama Kannan"
@@ -99,7 +99,7 @@ plot_matrix <- function(input, title = NULL) { # function to plot matrices
 
 # Introduction
 
-Modern datasets often have meaningful multiway structure. This is due to new technologies and an interest in analyzing relationships in large, high-dimensional datasets. 
+Modern datasets increasingly have meaningful multiway structure. This is due to new technologies and an interest in analyzing relationships in large, high-dimensional datasets. 
 Tensor models can preserve multiway structure, leading to more interpretability in the results. A common approach is to vectorize or matricize this higher order data to fit pre-established models and tools. 
 Applying vectorized models ignores the original covariance structure of the data, which can require estimating many more parameters compared to assuming there is a separable covariance structure. 
 Additionally, many researchers assume that data is normal. 
@@ -187,7 +187,7 @@ For example, the modes of $\tensor{A}$ could represent a sensor ID, time, and lo
 In regular matrix multiplication, we can multiply two matrices as long as the number of columns in the first matrix matches the rows of the second matrix. 
 Suppose we want to multiply a tensor and a matrix. 
 We need a new operator to specify which mode from the tensor should line up with the matrix. 
-The $n$-mode product specifies that the $n$-th mode of a tensor should have the same size as the columns of a matrix.
+The $n$-mode product specifies that the $n$-th mode of a tensor should have the same size as the columns of the matrix.
 
 Let tensor $\tensor{A} \in \field{R}^{I_{1} \times I_{2} \times \dots \times I_{D}}$ and let a matrix $\mat{U} \in \field{R}^{J \times I_{n}}$. 
 That is, the number of columns in $\mat{U}$ must have the same size as the $n$-th mode of $\tensor{A}$. 
@@ -195,7 +195,7 @@ Then the $n$-mode product of $\tensor{A}$ and $\mat{U}$ can be defined as
 
 $$(\tensor{A} \times_n \mat{U}) \in \field{R}^{I_{1} \times ... \times I_{n-1} \times J \times I_{n+1} \times ... \times I_{D}}.$$ 
 
-Note that the modes of the result stay the same as $\tensor{A}$ other than the $n$-th mode being replaced with $J$. 
+Note that the modes of the result stay the same as $\tensor{A}$ other than the $n$-th mode being replaced with $J$. The order of the result is the same as the order of the input tensor $\tensor{A}$.
 Its entries are
 
 $$(\tensor{A} \times_{n} \mat{U})_{i_1, ..., i_{n-1}, j, i_{n+1}, ... i_D} = \sum_{i_n = 1}^{I_{n}} a_{i_1, \dots, i_n, \dots, i_{D}} u_{j, i_n}$$
@@ -235,7 +235,7 @@ dim(A_tensor %xn% (u_mat ~ 2))
 
 In \pkg{tensortools}, $n$-mode products apply mode-specific covariance transformations using the Kronecker-separable covariance matrices.
 To generate tensor-normal observations, each mode of IID standard normal tensors are multiplied by corresponding Cholesky factors. 
-For density evaluation and Mahalanos-distance calculations, centered tensors are multiplied along each mode by the corresponding precision matrices.
+For density evaluation and Mahalanobis-distance calculations, centered tensors are multiplied along each mode by the corresponding precision matrices.
 
 ## Matricization
 
@@ -386,20 +386,20 @@ Their common representation also makes it possible to use a shared estimation fr
 
 # Tensor software across programming languages
 
-There are several existing software packages for tensors in several programming languages, but most emphasize tensor algebra or decompositions over probability models. 
-The distingushing feature of \pkg{tensortools} is the support for tensor-variate normal and skewed tensor-variate distributions. 
+There are several existing software packages for tensors across several programming languages, but most emphasize tensor algebra or decompositions over probability models. 
+The distinguishing feature of \pkg{tensortools} is the support for tensor-variate normal and skewed tensor-variate distributions. 
 These include random number generation, density functions, likelihood estimation, and model diagnostics.
 
-One of the most popular software packages is the Tensor Toolbox for MATLAB [@matlabTensorToolbox; @bader2006algorithm862]. 
+One of the most popular software packages is the \pkg{Tensor Toolbox} for MATLAB [@matlabTensorToolbox; @bader2006algorithm862]. 
 This toolbox introduces a `tensor` class to generate dense tensors from a multidimensional MATLAB array. 
 This class object has unique attributes so that the user can use methods such as `size`, `ndims`, `norm`, `unfold`, and `ttm`. 
 It also supports decompositions on the tensor object with methods like `mttkrp`, `cp_als`, `tucker_als`, and `hosvd`. 
-Tensor Toolbox also defines separate classes for other tensor formats: `sptensor` for sparse tensors, `ktensor` for Kruskal/CP factored tensors, and `ttensor` for Tucker factored tensors [@bader2007sparseFactored].
+\pkg{Tensor Toolbox} also defines separate classes for other tensor formats: `sptensor` for sparse tensors, `ktensor` for Kruskal/CP factored tensors, and `ttensor` for Tucker factored tensors [@bader2007sparseFactored].
 
-TensorLy in Python is similar to the Tensor Toolbox for MATLAB. It contains basic tensor operations and common decompositions including CP, Tucker, and Tensor-Train. 
-A major strength of TensorLy is that it has backend support across other common frameworks in Python, including NumPy, PyTorch, and TensorFlow. 
+\pkg{TensorLy} in Python is similar to the Tensor Toolbox for MATLAB. It contains basic tensor operations and common decompositions including CP, Tucker, and Tensor-Train. 
+A major strength of \pkg{TensorLy} is that it has backend support across other common frameworks in Python, including \pkg{NumPy}, \pkg{PyTorch}, and \pkg{TensorFlow}. 
 This makes it easier for the user to run functions on their GPU or along multiple machines [@tensorly2019]. 
-TensorFlow is another well-known package in Python, but it primarily uses the tensor object as inputs for machine learning methodologies rather than trying to expand on operations and decompositions.
+\pkg{TensorFlow} is another well-known package in Python, but it primarily uses the tensor object as inputs for machine learning methodologies rather than trying to expand on operations and decompositions.
 
 The Python Tensor Toolbox, \pkg{pyttb} is a refactoring of the Tensor Toolbox for MATLAB. Thus, it ports the common functions from Tensor Toolbox into Python, including the various unique tensor classes and decompositions [@pyttb].
 
@@ -408,76 +408,94 @@ In Julia, \pkg{TensorOperations.jl} provides support for tensor contractions and
 In R, \pkg{rTensor} has an S4 `Tensor` class and includes common operations and decompositions. It contains the CP, Tucker, and HOSVD [@rTensorCRAN]. \pkg{ttTensor} adds the Tensor-Train decomposition to this framework [@ttTensorCRAN]. 
 \pkg{tensorr} is now archived on CRAN, but it originally provided support for S4 sparse tensor and dense tensor classes.
 
-```{r software-function-crosswalk, echo=FALSE, results='asis'}
-software_function_crosswalk <- data.frame(
-  Purpose = c(
-    "Create or store a dense tensor",
-    "Represent sparse or factored tensors",
-    "Matricize / unfold",
-    "n-mode product",
-    "CP/PARAFAC",
-    "Tucker / HOSVD",
-    "Tensor-Train",
-    "Tensor-variate distributions"
+```{r software-feature-crosswalk-compact, echo=FALSE, results="asis"}
+latex_output <- knitr::is_latex_output()
+
+yes <- "$\\checkmark$"
+no  <- "$\\times$"
+
+software_feature_crosswalk <- data.frame(
+  Package = c(
+    "tensortools",
+    "tensr",
+    "rTensor",
+    "ttTensor",
+    "MATLAB Tensor Toolbox",
+    "TensorLy",
+    "pyttb"
   ),
-  `tensortools` = c(
-    "Uses a lightweight S3 subclass built on arrays",
-    "No dedicated sparse tensor class",
-    "`matricization()`",
-    "`n_prod()`, `nm_prod()`",
-    "`cp()`, `cp_reconstruct()`",
-    "`tucker()`, `hosvd()`, `tucker_reconstruct()`, `hosvd_reconstruct()`",
-    "`tt()`, `tt_reconstruct()`",
-    "`rtnorm()`, `dtnorm()`, `rtskewt()`, `dtskewt()`, `rtvargamma()`, `dtvargamma()`, `rtgenhyper()`, `dtgenhyper()`, `rtinvgauss()`, `dtinvgauss()`, and `tensor_mle()`"
+  `R package` = c(
+    yes, yes, yes, yes, no, no, no
   ),
-  `Similar functions elsewhere` = c(
-    "MATLAB Tensor Toolbox `tensor`; TensorLy `tensor`; pyttb `tensor`; rTensor `Tensor`",
-    "MATLAB Tensor Toolbox `sptensor`, `ktensor`, `ttensor`; pyttb equivalents; ITensors.jl `ITensor`",
-    "MATLAB Tensor Toolbox `unfold` / `tenmat`; TensorLy `unfold`; rTensor unfolding methods",
-    "MATLAB Tensor Toolbox `ttm`; TensorLy `mode_dot`; rTensor `ttm`; TensorOperations.jl contractions",
-    "MATLAB Tensor Toolbox `cp_als`; Tensorlab `cpd`; TensorLy `parafac`; rTensor `cp`",
-    "MATLAB Tensor Toolbox `tucker_als` and `hosvd`; Tensorlab `lmlra`; TensorLy `tucker`; rTensor `hosvd`",
-    "TensorLy `tensor_train`; ttTensor `TTSVD`, `TTCross`, `TTWOPT`",
-    "Limited support in the general tensor software above"
+  `Tensor operations` = c(
+    yes, yes, yes, no, yes, yes, yes
+  ),
+  Decompositions = c(
+    yes, yes, yes, yes, yes, yes, yes
+  ),
+  `Tensor normal` = c(
+    yes, yes, no, no, no, no, no
+  ),
+  `Skewed families` = c(
+    yes, no, no, no, no, no, no
+  ),
+  `Covariance LRT` = c(
+    yes, yes, no, no, no, no, no
+  ),
+  `Goodness of fit` = c(
+    yes, no, no, no, no, no, no
   ),
   check.names = FALSE
 )
 
-knitr::kable(
-  software_function_crosswalk,
-  escape = TRUE,
-  booktabs = TRUE) |>
-  kableExtra::kable_styling(font_size = 8) |>
-  kableExtra::column_spec(1, width = "1.05in") |>
-  kableExtra::column_spec(2, width = "2.1in") |>
-  kableExtra::column_spec(3, width = "2.6in")
+table_output <- knitr::kable(
+  software_feature_crosswalk,
+  format = if (latex_output) "latex" else "html",
+  escape = FALSE,
+  booktabs = latex_output,
+  align = c("l", rep("c", 10)),
+  caption = paste(
+    "Comparison of tensor operations, decompositions, and",
+    "statistical functionality across software packages."
+  )
+)
+
+if (latex_output) {
+  table_output <- table_output |>
+    kableExtra::kable_styling(
+      font_size = 7,
+      latex_options = "scale_down"
+    )
+} else {
+  table_output <- table_output |>
+    kableExtra::kable_styling(
+      font_size = 12,
+      full_width = FALSE
+    )
+}
+
+table_output
 ```
 
 \FloatBarrier
 
 # Package design
 
-The main goal of \pkg{tensortools} is to provide functions for random number generation, density computation, and maximum likelihood estimation for common tensor variate distributions. 
-Additionally, the package provides diagnostic tests for the structure of input data.
+The main goal of \pkg{tensortools} is to provide functions generating tensor observations,  evaluating densities, estimating parameters using the maximum likelihood estimators, and diagnostic tests to assess model fit. Specifically, it supports the tensor-variate normal distribution and four normal variance-mean mixture families: skewed-$t$, generalized hyperbolic, variance gamma, and normal inverse Gaussian. 
 
 Distribution functions follow familiar R naming conventions: names beginning with `r` generate random draws, names beginning with `d` evaluate densities, and `tensor_mle()` fits a selected tensor-variate model. 
+
 Tensor algebra helpers such as `matricization()`, `n_prod()`, `nm_prod()`, `tensor_prod()`, and `khatri_rao()` are available to users and are also used internally by the likelihood and decomposition routines. 
 Decomposition functions are grouped with explicit reconstruction helpers: `cp()` and `cp_reconstruct()`, `tucker()` and `tucker_reconstruct()`, `hosvd()` and `hosvd_reconstruct()`, and `tt()` and `tt_reconstruct()`.
 
 One intentional decision was to store independent, identically distributed draws from a tensor variate distribution as a lightweight S3 array subclass. 
 For example, if we generate $N = 100$ draws from a tensor variate normal distribution of dimension $2 \times 3 \times 4$, the resulting R object will be a tensor class.
 
-```{r tensor-random}
-norm_three <- rtnorm(n = 100, mu = array(1:24, dim = c(2, 3, 4)))
-
-class(norm_three)
-```
-
-
 There are unique class functions to emphasize that there are $N$ independent, identically distributed draws from the same distribution. 
 `n_draws()` returns the number of draws while `draw_shape()` outputs the dimensions of one draw. 
 
-```{r}
+```{r tensor-random}
+norm_three <- rtnorm(n = 100, mu = array(1:24, dim = c(2, 3, 4)))
 n_draws(norm_three)
 draw_shape(norm_three)
 ```
@@ -531,7 +549,7 @@ For the tensor variate normal, the required arguments are mu and sigmas.
 There is an optional log argument to compute the log density rather than the density itself.
 
 ```{r dtnorm}
-dtnorm(tvn_draws[1], mu = mu_true, sigmas = sigmas_true)
+dtnorm(pull_draw(tvn_draws, 1), mu = mu_true, sigmas = sigmas_true)
 ```
 
 # Model fitting and inference
@@ -540,86 +558,16 @@ One major functionality that tensortools provides is MLE estimation.
 This is done via two different algorithms: for the tensor variate normal distribution, a flip-flop algorithm is used. 
 For tensor variate skewed distributions, an EM algorithm is used.
 
-Before discussing the tensor variate normal, we discuss the simpler matrix variate normal distribution. 
-The matrix variate normal distribution can be considered a special case of the multivariate normal distribution, where we force the restriction that the covariance matrix is separable. 
-That is, the covariance of the vectorized matrix draws can be described as the Kronecker product of two matrices.
+The separable covariance restriction and its curved exponential-family representation are described in the [Appendix section on the tensor variate normal model](#sec:tvn-curved-family).
 
-Let $\mat{X} \sim N(\mat{M}, \mat{U}, \mat{V}) \in \field{R}^{n \times p}$ and set $\boldsymbol{y} = \operatorname{vec}(\mat{X})$. 
-The matrix variate normal distribution imposes the separable covariance restriction
-
-$$\boldsymbol{\Sigma} = \mat{V} \otimes \mat{U},$$
-
-where $\mat{U}$ is the row covariance matrix and $\mat{V}$ is the column covariance matrix. Therefore
-
-$$\operatorname{vec}(\mat{X}) \sim N_{np}\left(\operatorname{vec}(\mat{M}), \mat{V} \otimes \mat{U}\right).$$
-
-This is a nonlinear restriction on the natural parameter space of the full multivariate normal family. 
-For the matrix variate normal, the covariance matrix is restricted to be defined as the Kronecker product of two covariance matrices. 
-This makes its parameter space a lower-dimensional curved subset of the full multivariate normal distribution [@existenceMLEKronecker].
-
-The flip-flop and EM algorithms both require initial values for the parameters. 
-For the flip-flop algorithm, the location tensor $\tensor{M}$ is initialized as the mean of all of the draws. 
-
-$$\tensor{M}^{(0)} = \bar{\tensor{X}} = \frac{1}{N} \sum_{i=1}^{N} \tensor{X}_{i}$$
-
-
-To initialize the mode-specific covariance matrices, each centered observation is matricized along mode $k$. 
-We pool the crossproducts of these matrices across all observations. 
-
-$$\tilde{\Sigma}_{k}^{(0)} = \frac{1}{N I_{-k}} \sum_{i=1}^{N} (\tensor{X_{i}} - \tensor{M}^{(0)})_{(k)}(\tensor{X_{i}} - \tensor{M}^{(0)})_{(k)}^{T}$$
-
-where $I_{-k} = \prod_{\substack{d = 1 \\ d \neq k}}^{D} I_{d} = \frac{I^{*}}{I_{k}}$. 
-
-It is then normalized so its trace is the size of mode k. 
-
-$$\Sigma_{k}^{(0)} = \frac{I_{k}}{\text{tr}(\tilde{\Sigma}_{k}^{(0)})} \tilde{\Sigma}_{k}^{(0)}$$
-
-For the normal variance-mean mixture families, the covariance matrices are initialized using estimates obtained by fitting a tensor-variate normal model. 
-Initial values for the remaining parameters are family specific.
-
-The location tensor is initialized using the median. 
-This provides a robust starting value that is less influenced by skewness.
-
-$$\tensor{M}^{(0)} = \tilde{\tensor{X}}$$
-
-Under the normal variance-mean mixture family, 
-
-$$E[\tensor{X}] = \tensor{M} + E[W] \tensor{A}$$
-
-We can use this expectation to initialize the skewness tensor $\tensor{A}$. 
-
-$$
-\begin{aligned}
-\tensor{A}^{(0)} &= \frac{1}{E_{\theta^{(0)}}[W]} (E[\tensor{X}] - \tensor{M}) \\
-&= \frac{1}{E_{\theta^{(0)}}[W]} (\bar{\tensor{X}} - \tensor{M}^{(0)}) 
-\end{aligned}
-$$
-
-Initial values for other parameters are chosen separately for each family. 
-For example, for the skewed t, $\nu^{(0)} = 20$. 
+The initialization rules for the flip-flop and EM algorithms are provided in the [Appendix section on parameter initialization](#sec:parameter-initialization).
 
 The individual covariance matrices in a Kronecker product are not defined uniquely. 
 Multiplying one covariance matrix by a constant and another by the inverse of that constant produces the same full covariance matrix. 
 The package addresses this by normalizing the trace of each covariance matrix except the final one to equal its corresponding mode dimension. 
 This preserves the overall Kronecker covariance while giving the individual mode covariance estimates a consistent scale.
 
-For the matrix variate normal model, differentiating the likelihood gives the updates
-
-$$\hat{\mat{V}} = \frac{1}{Nn} \sum_{i=1}^{N} \mat{X}_{ic}^{T} \hat{\mat{U}}^{-1}\mat{X}_{ic}$$
-
-and
-
-$$\hat{\mat{U}} = \frac{1}{Np} \sum_{i=1}^{N} \mat{X}_{ic}\hat{\mat{V}}^{-1}\mat{X}_{ic}^{T}.$$
-
-Each estimate depends on the other, which leads to the iterative flip-flop algorithm. 
-If $N > \max(n,p)$, then the flip-flop algorithm has only one solution and the MLEs are unique under the conditions described by @estimateTestKronecker.
-
-Convergence checks are done by comparing the change in likelihood relative to the previous iteration. 
-At the $t$-th iteration, the equation used is
-
-$$A = \frac{|\ell_{t} - \ell_{t-1}|}{|\ell_{t-1}| + 10^{-8}}$$
-
-The algorithm ends when $A < \epsilon$, and by default $\epsilon = 1e-4$.
+The flip-flop update equations and convergence criterion are provided in the Appendix sections on [flip-flop estimation](#sec:flip-flop) and [convergence](#sec:convergence).
 
 # Diagnostic Tests
 
@@ -693,22 +641,20 @@ skewt_df <- tibble(
 (skewt_df |> 
   ggplot() +
   geom_point(aes(x = x1, y = x2), size = 0.6, alpha = 0.5) +
-  theme_minimal() +
   labs(x = "X1", y = "X2")) +
 (skewt_df |> 
   ggplot() +
   geom_point(aes(x = u1, y = x2), size = 0.6, alpha = 0.5) +
-  theme_minimal() +
   labs(x = "U1", y = "X2")) +
 (skewt_df |> 
   ggplot() +
   geom_point(aes(x = u1, y = u2), size = 0.6, alpha = 0.5) +
-  theme_minimal() +
-  labs(x = "U1", y = "U2"))
+  labs(x = "U1", y = "U2")) &
+  theme_minimal()
 ```
 
 Now that we have our uniform draws, we need a formal diagnostic test to assess them. 
-Followwing @interpoint, we apply the interpoint-distance test for $p \ge 2$ where $p = \prod_{d=1}^{D} I_{d}$ is the dimension of the vectorized tensor observation. 
+Following @interpoint, we apply the interpoint-distance test for $p \ge 2$ where $p = \prod_{d=1}^{D} I_{d}$ is the dimension of the vectorized tensor observation. 
 
 First, they define the interpoint distance of two points as
 
@@ -723,95 +669,14 @@ The second moment of the interpoint distances centered around the null mean $p/6
 $$\bar{S} = {\frac{1}{{N \choose 2}}} \sum_{1 \le i < j \le N}^{N} \left(D_{ij} - \frac{p}{6} \right)^{2}
 $$
 
-They derive the null variances of $\bar{\delta}$ and $\bar{S}$ which are used to standardize the statistics.
-$$\text{Var}(\bar{\delta}) = \frac{p(2N+3)}{90N(N-1)}$$ 
-
-and
-
-$$\text{Var}(\bar{S}) = 
-\begin{cases}
-\frac{1}{{N \choose 2}} \left(\frac{1}{56700}[989 + 202(N-2)]\right), & \quad p = 2 \\
-\frac{1}{{N \choose 2}} \left(\frac{1}{1050}[37 + 6(N-2)]\right), & \quad p = 3 \\
-\frac{1}{{N \choose 2}} \left(\frac{49 p^{2}}{16200} + \frac{101 p}{37800} + 2(N-2) \left[\frac{p^{2}}{16200} + \frac{29p}{37800}\right]\right), & \quad p \ge 4
-\end{cases}
-$$
-
-Let $\sigma_{\bar{\delta}} = \sqrt{\text{Var}(\bar{\delta})}$ and $\sigma_{\bar{S}} = \sqrt{\text{Var}(\bar{S})}$. 
-
-Then with the Central Limit Theorem for U-processes, we can say that
-
-$$\frac{\bar{\delta} - p/6}{\sigma_{\bar{\delta}}} \xrightarrow{D}  N(0, 1)$$ 
-
-and
-
-$$\frac{\bar{S} - 7p/180}{\sigma_{\bar{S}}} \xrightarrow{D}  N(0, 1)$$
-
-They define 
-
-$$Q_{1} = \frac{(\bar{\delta} - p/6)^{2}}{\text{Var}(\bar{\delta})}$$ 
-
-and
-
-$$Q_{2} = \frac{(\bar{S} - 7p/180)^{2}}{\text{Var}(\bar{S})}$$.
-
-Then $Q_{1} \xrightarrow{D} \chi^{2}_{1}$ and $Q_{2} \xrightarrow{D} \chi_{1}^{2}$. 
+The null variances, known-parameter test statistics, and their reference distributions are given in the [Appendix section on the known-parameter null distribution](#sec:interpoint-null).
 
 Now we have two formal test statistics. 
 However, these reference distributions for $Q_{1}$ and $Q_{2}$ assume that the parameters used in the Rosenblatt transformation are known. 
 In practice, `tensor_mle()` estimates the parameters as MLEs from the same observations. 
-We therefore need to adjust the asymptotic variance of $\bar{\delta}$ and $\bar{\S}$ to obtain accurate test statistics. 
+We therefore need to adjust the asymptotic variance of $\bar{\delta}$ and $\bar{S}$ to obtain accurate test statistics. 
 
-Both the mean interpoint distance and its centered second moment are order-two $U$-statistics because the kernel averages a function over all tuples of a fixed size. 
-Results for U-statistics with estimated nuisance parameters can be used to adjust their asymptotic variances @mle_ustat.
-Let $\mat{U}_{i} = R_{\hat{\theta}}(\mat{X}_{i})$ represent the Rosenblatt transformation of observation $\mat{X}_{i}$ evaluated at the MLE $\hat{\theta}$. 
-
-The centered mean-interpoint statistic is
-
-$$\hat{\Delta}(\hat{\theta}) = \frac{1}{{N \choose 2}} \sum_{i < j} \left(D_{ij} - \frac{p}{6}\right) = \bar{\delta} - \frac{p}{6}$$
-
-
-
-Under independent uniformity, the first-order projection for $\hat{\Delta}(\hat{\theta})$ is 
-
-$$a_{1i} = \sum_{r=1}^{p} \left(U_{ir}^{2} - U_{ir} + \frac{1}{6}\right)
-$$
-
-We also need to get the first-order projection for $\hat{S}$.
-
-$$
-A_{i} = \sum_{r=1}^{p} \left(U_{ir}^{2} - U_{ir} + \frac{1}{3}\right) 
-$$
-
-The corresponding first-order projection for $Q_{2}$ is
-
-$$
-a_{2i} = A_{i}^{2} + \frac{1-p}{3} A_{i} + \frac{p^{2}}{36} - \frac{11p}{180}
-$$
-
-
-Let
-
-$$\ve{s}_{i} = \frac{\partial}{\partial \theta} \log f(\mat{X}_{i}; \theta)\bigg|_{\theta = \hat{\theta}}
-$$
-
-be the fitted-model score. 
-The parameter vector $\theta$ contains the MLEs obtained from the flip-flop or EM algorithm.
-
-For $m \in \{1, 2\}$, let $\bar{a}_{m}$ denote the sample mean of $a_{mi}$ and $\bar{\ve{s}}$ denote the sample mean score vector. 
-We estimate the variance of the first-order projection, the score information matrix, and their cross-covariance. 
-
-$$\begin{aligned}
-\hat{H}_{m} &= \frac{1}{N} \sum_{i=1}^{N} (a_{mi} - \bar{a}_{m})^{2} \\
-\hat{G}_{m} &= \frac{1}{N} \sum_{i=1}^{N} (a_{mi} - \bar{a}_{m})(\ve{s}_{i} - \bar{\ve{s}})^{T} \\
-\hat{I} &= \frac{1}{N} \sum_{i=1}^{N} (\ve{s}_{i} - \bar{\ve{s}})(\ve{s}_{i} - \bar{\ve{s}})^{T}
-\end{aligned}
-$$
-
-Then, the fitted-parameter-adjusted asymptotic variance is 
-
-$$\hat{\Omega}_{m, \text{adj}} = 4(\hat{H}_{m} - \hat{G}_{m}\hat{I}^{+}\hat{G}_{m}^{T})$$
-
-where $\hat{I}^{+}$ is the Moore-Penrose pseudoinverse.
+The derivation of the fitted-parameter adjustment is provided in the [Appendix section on the adjustment for estimated parameters](#sec:interpoint-adjustment).
 
 The adjusted statistics are
 
@@ -821,7 +686,145 @@ Q_{1, \text{adj}} &= \frac{N(\bar{\delta} - p/6)^{2}}{\hat{\Omega}_{1, \text{adj
 Q_{2, \text{adj}} &= \frac{N(\bar{S} - 7p/180)^{2}}{\hat{\Omega}_{2, \text{adj}}} \xrightarrow{D} \chi_{1}^{2} 
 \end{aligned}
 $$
+The adjusted $Q_{1}$ statistic can be computed using the `adjusted_q1()` function. 
+It returns the test statistic and $p$-value. 
 
+```{r, echo = FALSE}
+# Accumulate the score cross-products needed for the MLE correction.
+# Only one score chunk is held in memory at a time.
+tensor_score_crossproducts <- function(draws, Z, fit,
+                                       model = "skewt",
+                                       chunk_size = 256L) {
+  model <- match.arg(model, c("normal", "skewt", "vargamma",
+                              "invgauss", "genhyper"))
+  n <- n_draws(draws)
+  q <- prod(draw_shape(draws))
+
+  if (!is.matrix(Z) || nrow(Z) != n || ncol(Z) != q) {
+    stop("Z must be an n x prod(draw_shape(draws)) matrix.")
+  }
+  if (length(chunk_size) != 1L || !is.finite(chunk_size) ||
+      chunk_size < 1L || chunk_size != as.integer(chunk_size)) {
+    stop("chunk_size must be one positive integer.")
+  }
+  chunk_size <- as.integer(chunk_size)
+
+  # Retain only sums needed for H, G, and I.
+  sum_a <- 0
+  sum_a2 <- 0
+  sum_s <- NULL
+  sum_as <- NULL
+  sum_ss <- NULL
+
+  for (start in seq.int(1L, n, by = chunk_size)) {
+    end <- min(start + chunk_size - 1L, n)
+    index <- start:end
+
+    # Scores are calculated only for this chunk.
+    score_chunk <- tensor_scores(
+      draws = slice_draws(draws, index),
+      model = model,
+      fit = fit
+    )
+    score_chunk <- as.matrix(score_chunk)
+
+    # First-order projection for Q1.
+    z_chunk <- Z[index, , drop = FALSE]
+    a_chunk <- rowSums(z_chunk^2 - z_chunk + 1 / 6)
+
+    if (is.null(sum_s)) {
+      p <- ncol(score_chunk)
+      sum_s <- numeric(p)
+      sum_as <- numeric(p)
+      sum_ss <- matrix(0, nrow = p, ncol = p)
+    }
+
+    sum_a <- sum_a + sum(a_chunk)
+    sum_a2 <- sum_a2 + sum(a_chunk^2)
+    sum_s <- sum_s + colSums(score_chunk)
+    sum_as <- sum_as + drop(crossprod(a_chunk, score_chunk))
+    sum_ss <- sum_ss + crossprod(score_chunk)
+  }
+
+  # Center by moment identities without making a second pass.
+  mean_a <- sum_a / n
+  mean_s <- sum_s / n
+
+  H_hat <- sum_a2 / n - mean_a^2
+  G_hat <- sum_as / n - mean_a * mean_s
+  I_hat <- sum_ss / n - tcrossprod(mean_s)
+  I_hat <- (I_hat + t(I_hat)) / 2
+
+  list(H = H_hat, G = G_hat, I = I_hat)
+}
+
+adjusted_q1 <- function(draws, theta_hat,
+                        rosenblatt_fun,
+                        model = "skewt",
+                        chunk_size = 256L,
+                        U = NULL,
+                        n_draws_fun = n_draws) {
+  n <- n_draws_fun(draws)
+
+  # Reuse precomputed Rosenblatt values when available.
+  if (is.null(U)) {
+    U <- rosenblatt_fun(draws, theta_hat)
+  }
+
+  Z <- matrix(unclass(U), nrow = n)
+  q <- ncol(Z)
+
+  # Raw Q1 U-statistic: mean squared pairwise distance minus q/6.
+  row_sq <- rowSums(Z^2)
+  pair_sum <- n * sum(row_sq) - sum(colSums(Z)^2)
+  U1 <- pair_sum / choose(n, 2) - q / 6
+
+  moments <- tensor_score_crossproducts(
+    draws = draws,
+    Z = Z,
+    fit = theta_hat,
+    model = model,
+    chunk_size = chunk_size
+  )
+
+  # MLE-adjusted covariance; nu = 2 for pairwise interpoint distances.
+  beta <- tryCatch(
+    solve(moments$I, moments$G),
+    error = function(e) {
+      stop("The information matrix is singular or ill-conditioned.")
+    }
+  )
+  Sigma_hat <- 4 * (moments$H - sum(moments$G * beta))
+
+  if (!is.finite(Sigma_hat) || Sigma_hat <= 0) {
+    stop("Estimated adjusted variance is not positive.")
+  }
+
+  statistic <- n * U1^2 / Sigma_hat
+
+  list(
+    U1 = U1,
+    variance_adjusted = Sigma_hat,
+    statistic = statistic,
+    p.value = pchisq(statistic, df = 1, lower.tail = FALSE)
+  )
+}
+
+rosenblatt_fun <- function(draws, fit) {
+  tensor_rosenblatt(
+    draws = draws,
+    model = "skewt",
+    parameters = fit
+  )
+}
+```
+
+```{r}
+bivar_mle <- tensor_mle(bivar_skewt, model = "skewt")
+
+adjusted_q1(bivar_skewt, theta_hat = bivar_mle, 
+            rosenblatt_fun = rosenblatt_fun)
+```
 
 ## Mahalanobis Distance
 
@@ -866,7 +869,7 @@ plot_malanobis <- function(draws, title = "Dist") {
 
 The figure below shows the Mahalanobis distance-distance plots along with the KS test statistic and $p$-value.
 ```{r plot-mahalanobis, echo = FALSE, fig.cap="From left to right, the input data is a multivariate normal, matrix variate normal with a separable covariance structure, matrix variate with nonseparable covariance matrices, and tensor variate normal with a separable covariance structure. When the separable covariance structure is appropriate, the points should lie near the reference line $y=x$. There should be a small KS statistic D value and a large p-value."}
-par(mfcol = c(1, 4))
+par(mfcol = c(2, 2))
 plot_malanobis(multivar_draws, title = "Multivar")
 plot_malanobis(matrix_draws, title = "Mat norm")
 plot_malanobis(mat_nocovar_draws, title = "Mat nonseparable covar norm")
@@ -912,13 +915,11 @@ All the covariance matrices are not the identity to best model the draws.
 ```{r lrt-test-all, cache = TRUE}
 res <- map_dfr(list(NULL, c(1), c(2), c(3), c(1, 2), c(1, 3), c(2, 3)),
         draws = tvn_draws, test_restrict)
+```
 
-knitr::kable(
-  res,
-  digits = 3,
-  escape = FALSE,
-  booktabs = TRUE,
-  caption = "LRT for Full Tensor Variate")
+```{r, echo = FALSE}
+knitr::kable(res, digits = 3, escape = FALSE, booktabs = TRUE, 
+             caption = "LRT for Full Tensor Variate")
 ```
 
 
@@ -1089,28 +1090,15 @@ save(obs, file = "obs.Rdata")
 ```
 
 
-As seen in the table below, the tensor variate model had the smallest BIC. It had a comparable likelihood to the matricizaions while having far fewer parameters. 
+As seen in the table below, the tensor variate model had the smallest BIC. It had a comparable likelihood to the matricizations while having far fewer parameters. 
 ```{r}
-load("obs.Rdata")
+load("obs_resnet.Rdata")
 
 fits <- list(
-  tensor = tensor_mle(
-    obs,
-    model = "normal", tol = 1e-6
-  ),
-  first_mat = tensor_mle(
-    matricization(obs, 1),
-    model = "normal", tol = 1e-6
-  ),
-  second_mat = tensor_mle(
-    matricization(obs, 2),
-    model = "normal", tol = 1e-6
-  ),
-  third_mat = tensor_mle(
-    matricization(obs, 3),
-    model = "normal", tol = 1e-6
-  )
-)
+  tensor = tensor_mle(obs, model = "normal", tol = 1e-6),
+  first_mat = tensor_mle(matricization(obs, 1), model = "normal", tol = 1e-6),
+  second_mat = tensor_mle(matricization(obs, 2), model = "normal", tol = 1e-6),
+  third_mat = tensor_mle(matricization(obs, 3), model = "normal",  tol = 1e-6))
 
 resnet_res <-
   tibble(model = names(fits),
@@ -1122,7 +1110,9 @@ resnet_res <-
 knitr::kable(resnet_res, escape = TRUE, booktabs = TRUE) 
 ```
 
-```{r, fig.height = 6}
+
+Below are the MLEs for the correlation matrices under the tensor variate normal model. 
+```{r, fig.height = 6, echo = FALSE}
 sigma_plots <- imap(fits$tensor$sigmas, function(sigma, i) {
   plot_matrix(cov2cor(sigma), bquote(Sigma[.(i)])) +
     labs(x = "Column", y = "Row", fill = "Correlation") +
@@ -1143,7 +1133,28 @@ wrap_plots(sigma_plots, ncol = 2, guides = "collect") &
 ```
 
 
-```{r, eval = FALSE}
+
+```{r, echo = FALSE, eval = FALSE}
+fits_skew <- list(
+  skewt = tensor_mle(obs, model = "skewt", tol = 1e-6,
+                    init = list(mu = fits$tensor$mu, 
+                                sigmas = fits$tensor$sigmas)),
+  genhyper = tensor_mle(obs, model = "genhyper", tol = 1e-6),
+  invgauss = tensor_mle(obs, model = "invgauss", tol = 1e-6),
+  vargamma = tensor_mle(obs, model = "vargamma",  tol = 1e-6))
+
+resnet_skew <-
+  tibble(model = names(fits_skew),
+         loglik = map_dbl(fits_skew, "loglik"),
+         BIC = map_dbl(fits_skew, "BIC"),
+         k = map_dbl(fits_skew, "k")) |>
+  arrange(BIC)
+
+knitr::kable(resnet_skew, escape = TRUE, booktabs = TRUE) 
+```
+
+
+```{r, eval = FALSE, echo = FALSE}
 library(purrr)
 library(dplyr)
 
@@ -1210,7 +1221,7 @@ fit_models <- function(X_train) {
 ```
 
 
-```{r, eval = FALSE}
+```{r, eval = FALSE, echo = FALSE}
 # ------------------------------------------------------------
 # Leave-one-subject-out CV
 # ------------------------------------------------------------
@@ -1314,7 +1325,7 @@ cat("rjtools version:", as.character(packageVersion("rjtools")), "\n")
 # Acknowledgments
 
 Add funding, contributor, and institutional acknowledgments here.
-
+<!-- 
 # Limit-switch visual anomaly-detection example
 
 This example fits a tensor-variate normal model to images of accepted (OK)
@@ -1443,6 +1454,7 @@ pilot_metrics <- ng_scores |>
     auc_vs_heldout_ok = auc_pairwise(score, calibration_score),
     .groups = "drop"
   )
+
 pilot_metrics
 ```
 
@@ -1609,7 +1621,7 @@ The generalized-hyperbolic PS fit returned NaN warnings and stopped with a
 weight-validation error, so it has no score to compare. The code below catches
 family-specific failures and reports the convergence status.
 
-```{r limit-switch-skewed-code, eval=FALSE}
+```{r limit-switch-skewed-code, eval=FALSE, echo=FALSE}
 # Run the multi-capture preparation chunk above first. It creates
 # train_single, train_multi, calibration_single, calibration_multi,
 # read_views(), and ng_index.
@@ -1741,11 +1753,11 @@ operating threshold. A plausible explanation is that six-view tensors have
 six times as many mean entries as the PS tensor and combine PS color encoding
 with RGBL illumination changes; with only 200 training units, that adds
 variation the model must absorb. This explanation is consistent with the
-results, but would need targeted ablation and independent test data to confirm.
+results, but would need targeted ablation and independent test data to confirm. -->
 
-# Appendix
+# Appendix {#sec:appendix}
 
-## Tensor Variate Normal as a Curved Exponential Family
+## Tensor Variate Normal as a Curved Exponential Family {#sec:tvn-curved-family}
 
 Setting this restriction leads to a curved exponential family. To see this, first consider the ordinary multivariate normal distribution. If $\boldsymbol{y} \sim(\boldsymbol{\mu}, \boldsymbol{\Sigma}) \in \field{R}^{np}$, then 
 
@@ -1806,7 +1818,285 @@ $$f(\tensor{X}) (2\pi)^{-n^*/2} \left(\prod_{d=1}^{D} |\Sigma_d|^{-n^*/(2n_d)}\r
 
 Each $\Sigma_d$ is positive definite and describes the covariance structure corresponding to mode $d$.
 
-## Tensor decompositions
+## Maximum Likelihood Estimation Details {#sec:mle-details}
+
+### Parameter Initialization {#sec:parameter-initialization}
+
+The flip-flop and EM algorithms both require initial values for the parameters. 
+For the flip-flop algorithm, the location tensor $\tensor{M}$ is initialized as the mean of all of the draws. 
+
+$$\tensor{M}^{(0)} = \bar{\tensor{X}} = \frac{1}{N} \sum_{i=1}^{N} \tensor{X}_{i}$$
+
+
+To initialize the mode-specific covariance matrices, each centered observation is matricized along mode $k$. 
+We pool the crossproducts of these matrices across all observations. 
+
+$$\tilde{\Sigma}_{k}^{(0)} = \frac{1}{N I_{-k}} \sum_{i=1}^{N} (\tensor{X_{i}} - \tensor{M}^{(0)})_{(k)}(\tensor{X_{i}} - \tensor{M}^{(0)})_{(k)}^{T}$$
+
+where $I_{-k} = \prod_{\substack{d = 1 \\ d \neq k}}^{D} I_{d} = \frac{I^{*}}{I_{k}}$. 
+
+It is then normalized so its trace is the size of mode k. 
+
+$$\Sigma_{k}^{(0)} = \frac{I_{k}}{\text{tr}(\tilde{\Sigma}_{k}^{(0)})} \tilde{\Sigma}_{k}^{(0)}$$
+
+For the normal variance-mean mixture families, the covariance matrices are initialized using estimates obtained by fitting a tensor-variate normal model. 
+Initial values for the remaining parameters are family specific.
+
+The location tensor is initialized using the median. 
+This provides a robust starting value that is less influenced by skewness.
+
+$$\tensor{M}^{(0)} = \tilde{\tensor{X}}$$
+
+Under the normal variance-mean mixture family, 
+
+$$E[\tensor{X}] = \tensor{M} + E[W] \tensor{A}$$
+
+We can use this expectation to initialize the skewness tensor $\tensor{A}$. 
+
+$$
+\begin{aligned}
+\tensor{A}^{(0)} &= \frac{1}{E_{\theta^{(0)}}[W]} (E[\tensor{X}] - \tensor{M}) \\
+&= \frac{1}{E_{\theta^{(0)}}[W]} (\bar{\tensor{X}} - \tensor{M}^{(0)}) 
+\end{aligned}
+$$
+
+Initial values for other parameters are chosen separately for each family. 
+For example, for the skewed t, $\nu^{(0)} = 20$. 
+
+### Flip-Flop Estimation {#sec:flip-flop}
+
+For the matrix variate normal model, differentiating the likelihood gives the updates
+
+$$\hat{\mat{V}} = \frac{1}{Nn} \sum_{i=1}^{N} \mat{X}_{ic}^{T} \hat{\mat{U}}^{-1}\mat{X}_{ic}$$
+
+and
+
+$$\hat{\mat{U}} = \frac{1}{Np} \sum_{i=1}^{N} \mat{X}_{ic}\hat{\mat{V}}^{-1}\mat{X}_{ic}^{T}.$$
+
+Each estimate depends on the other, which leads to the iterative flip-flop algorithm. 
+If $N > \max(n,p)$, then the flip-flop algorithm has only one solution and the MLEs are unique under the conditions described by @estimateTestKronecker.
+
+### Convergence Criterion {#sec:convergence}
+
+Convergence checks are done by comparing the change in likelihood relative to the previous iteration. 
+At the $t$-th iteration, the equation used is
+
+$$A = \frac{|\ell_{t} - \ell_{t-1}|}{|\ell_{t-1}| + 10^{-8}}$$
+
+The algorithm ends when $A < \epsilon$, and by default $\epsilon = 1e-4$.
+
+## Rosenblatt Interpoint Test Derivations {#sec:interpoint-derivation}
+
+### Known-Parameter Null Distribution {#sec:interpoint-null}
+
+They derive the null variances of $\bar{\delta}$ and $\bar{S}$ which are used to standardize the statistics.
+$$\text{Var}(\bar{\delta}) = \frac{p(2N+3)}{90N(N-1)}$$ 
+
+and
+
+$$\text{Var}(\bar{S}) = 
+\begin{cases}
+\frac{1}{{N \choose 2}} \left(\frac{1}{56700}[989 + 202(N-2)]\right), & \quad p = 2 \\
+\frac{1}{{N \choose 2}} \left(\frac{1}{1050}[37 + 6(N-2)]\right), & \quad p = 3 \\
+\frac{1}{{N \choose 2}} \left(\frac{49 p^{2}}{16200} + \frac{101 p}{37800} + 2(N-2) \left[\frac{p^{2}}{16200} + \frac{29p}{37800}\right]\right), & \quad p \ge 4
+\end{cases}
+$$
+
+Let $\sigma_{\bar{\delta}} = \sqrt{\text{Var}(\bar{\delta})}$ and $\sigma_{\bar{S}} = \sqrt{\text{Var}(\bar{S})}$. 
+
+Then with the Central Limit Theorem for U-processes, we can say that
+
+$$\frac{\bar{\delta} - p/6}{\sigma_{\bar{\delta}}} \xrightarrow{D}  N(0, 1)$$ 
+
+and
+
+$$\frac{\bar{S} - 7p/180}{\sigma_{\bar{S}}} \xrightarrow{D}  N(0, 1)$$
+
+They define 
+
+$$Q_{1} = \frac{(\bar{\delta} - p/6)^{2}}{\text{Var}(\bar{\delta})}$$ 
+
+and
+
+$$Q_{2} = \frac{(\bar{S} - 7p/180)^{2}}{\text{Var}(\bar{S})}$$.
+
+Then $Q_{1} \xrightarrow{D} \chi^{2}_{1}$ and $Q_{2} \xrightarrow{D} \chi_{1}^{2}$. 
+
+### Adjustment for Estimated Parameters {#sec:interpoint-adjustment}
+
+Both the mean interpoint distance and its centered second moment are $U$-statistics of degree 2 because each kernel is averaged over all pairs of observations. 
+Results for U-statistics with estimated nuisance parameters can be used to adjust their asymptotic variances @mle_ustat.
+Let $\ve{U}_{i}(\theta) = R_{\theta}(\mat{X}_{i})$ represent the Rosenblatt transformation of observation $\mat{X}_{i}$. 
+In practice, the transformation is evaluated at the MLE $\hat{\theta}$.
+To derive the kernels of degree 1, let $\theta_{0}$ denote the true parameter and write $\ve{U}_{i}=\ve{U}_{i}(\theta_{0})$.
+Under the null model, these known-parameter transforms are independent $\operatorname{Uniform}([0,1]^p)$ random vectors.
+The subsequent score adjustment accounts for replacing $\theta_{0}$ with $\hat{\theta}$.
+
+Following Assumption A2 of @mle_ustat, for a centered $U$-statistic of degree 2 with kernel $h(\ve{u},\ve{v})$, define its kernel of degree 1 as
+
+$$
+h^{(1)}(\ve{u}) = E\left[h(\ve{u},\ve{V}) \mid \ve{u}\right],
+$$
+
+where $\ve{V}$ is an independent $\operatorname{Uniform}([0,1]^p)$ random vector.
+Because the interpoint statistics have degree $\nu=2$, Assumption A2 gives the expansion
+
+$$
+\sqrt{N}\hat{T}_{N}(\theta_{0})
+=
+\frac{2}{\sqrt{N}}\sum_{i=1}^{N}h^{(1)}(\ve{U}_{i})
++O_{p}(N^{-1/2}).
+$$
+
+Consequently, the asymptotic variance of $\sqrt{N}\hat{T}_{N}(\theta_{0})$ is $4\operatorname{Var}\{h^{(1)}(\ve{U})\}$.
+We denote the kernels of degree 1 associated with the two centered interpoint statistics by $a_{1}$ and $a_{2}$.
+
+The centered mean-interpoint statistic is
+
+$$\hat{\Delta}(\hat{\theta}) = \frac{1}{{N \choose 2}} \sum_{i < j} \left(D_{ij} - \frac{p}{6}\right) = \bar{\delta} - \frac{p}{6}$$
+
+with kernel
+
+$$h_{1}(\ve{u},\ve{v}) = D(\ve{u},\ve{v})-\frac{p}{6}, \qquad D(\ve{u},\ve{v}) = \sum_{r=1}^{p}(u_{r}-v_{r})^{2}.
+$$
+
+For $V_{r}\sim\operatorname{Uniform}(0,1)$,
+
+$$
+\begin{aligned}
+E\left[(u_{r}-V_{r})^{2}\mid u_{r}\right] &= u_{r}^{2}-2u_{r}E[V_{r}]+E[V_{r}^{2}] \\
+&= u_{r}^{2}-u_{r}+\frac{1}{3}.
+\end{aligned}
+$$
+
+Also, $E[(U_{r}-V_{r})^{2}] = 1/6$. Therefore, under the known-parameter null, the kernel of degree 1 associated with $\hat{\Delta}$ is
+
+$$
+\begin{aligned}
+a_{1i}
+&=
+h_{1}^{(1)}(\ve{U}_{i})
+=
+E\left[h_{1}(\ve{U}_{i},\ve{V})\mid\ve{U}_{i}\right] \\ 
+&= \sum_{r=1}^{p} \left(U_{ir}^{2} - U_{ir} + \frac{1}{6}\right).
+\end{aligned}
+$$
+
+The centered second-moment statistic is
+
+$$
+\hat{S}(\hat{\theta}) = \frac{1}{{N \choose 2}} \sum_{i<j} \left\{
+\left(D_{ij}-\frac{p}{6}\right)^{2} -\frac{7p}{180} \right\} = \bar{S}-\frac{7p}{180}.
+$$
+
+The centering constant follows from
+
+$$
+\operatorname{Var}\left\{(U_{r}-V_{r})^{2}\right\} = \frac{1}{15}-\frac{1}{36} = \frac{7}{180}.
+$$
+
+Because the coordinate contributions are independent, the variance of their sum is $7p/180$.
+
+Define
+
+$$
+b_{r}(u_{r})
+=
+u_{r}^{2}-u_{r}+\frac{1}{3}
+$$
+
+and
+
+$$
+A(\ve{u})
+=
+\sum_{r=1}^{p}b_{r}(u_{r}).
+$$
+
+Then $E[D(\ve{u},\ve{V})\mid\ve{u}]=A(\ve{u})$. In addition,
+
+$$
+E[(u_{r}-V_{r})^{4}\mid u_{r}]
+=
+u_{r}^{4}-2u_{r}^{3}+2u_{r}^{2}-u_{r}+\frac{1}{5},
+$$
+
+and subtracting $b_{r}(u_{r})^{2}$ gives
+
+$$
+\operatorname{Var}\left\{(u_{r}-V_{r})^{2}\mid u_{r}\right\}
+=
+\frac{1}{3}b_{r}(u_{r})-\frac{1}{45},
+$$
+
+so independence across coordinates gives
+
+$$
+E[D(\ve{u},\ve{V})^{2}\mid\ve{u}]
+=
+A(\ve{u})^{2}+\frac{1}{3}A(\ve{u})-\frac{p}{45}.
+$$
+
+Let
+
+$$
+A_{i}
+=
+A(\ve{U}_{i})
+=
+\sum_{r=1}^{p}\left(U_{ir}^{2}-U_{ir}+\frac{1}{3}\right).
+$$
+
+The kernel of degree 1 associated with the centered second-moment statistic is therefore
+
+$$
+\begin{aligned}
+a_{2i}
+&=
+h_{2}^{(1)}(\ve{U}_{i})
+=
+E\left[
+\left.
+\left(D(\ve{U}_{i},\ve{V})-\frac{p}{6}\right)^{2}
+-\frac{7p}{180}
+\right|\ve{U}_{i}
+\right]\\
+&=
+A_{i}^{2}
++\frac{1-p}{3}A_{i}
++\frac{p^{2}}{36}
+-\frac{11p}{180}.
+\end{aligned}
+$$
+
+Thus, $a_{1i}$ and $a_{2i}$ are evaluations of the kernels of degree 1 associated with the centered $U$-statistics $\hat{\Delta}(\hat{\theta})$ and $\hat{S}(\hat{\theta})$, respectively. They are not kernels for the squared statistics $Q_{1}$ and $Q_{2}$; instead, their variances determine the denominators used to construct those statistics. The score adjustment below accounts for evaluating the Rosenblatt transformation at $\hat{\theta}$ rather than $\theta_{0}$.
+
+
+Let
+
+$$\ve{s}_{i} = \frac{\partial}{\partial \theta} \log f(\mat{X}_{i}; \theta)\bigg|_{\theta = \hat{\theta}}
+$$
+
+be the fitted-model score. 
+The parameter vector $\theta$ contains the MLEs obtained from the flip-flop or EM algorithm.
+
+For $m \in \{1, 2\}$, let $\bar{a}_{m}$ denote the sample mean of $a_{mi}$ and $\bar{\ve{s}}$ denote the sample mean score vector. 
+We estimate the variance of the kernel of degree 1, the score information matrix, and their cross-covariance. 
+
+$$\begin{aligned}
+\hat{H}_{m} &= \frac{1}{N} \sum_{i=1}^{N} (a_{mi} - \bar{a}_{m})^{2} \\
+\hat{G}_{m} &= \frac{1}{N} \sum_{i=1}^{N} (a_{mi} - \bar{a}_{m})(\ve{s}_{i} - \bar{\ve{s}})^{T} \\
+\hat{I} &= \frac{1}{N} \sum_{i=1}^{N} (\ve{s}_{i} - \bar{\ve{s}})(\ve{s}_{i} - \bar{\ve{s}})^{T}
+\end{aligned}
+$$
+
+Then, the fitted-parameter-adjusted asymptotic variance is 
+
+$$\hat{\Omega}_{m, \text{adj}} = 4(\hat{H}_{m} - \hat{G}_{m}\hat{I}^{+}\hat{G}_{m}^{T})$$
+
+where $\hat{I}^{+}$ is the Moore-Penrose pseudoinverse.
+
+## Tensor decompositions {#sec:tensor-decompositions}
 
 The idea of decompositions can also apply to tensors. 
 The package provides the Tucker, PARAFAC, higher-order singular value, and Tensor-Train decompositions.
