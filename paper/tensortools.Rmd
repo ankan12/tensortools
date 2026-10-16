@@ -72,8 +72,9 @@ knitr::opts_chunk$set(
   message = FALSE,
   fig.align = "center",
   fig.width = 6,
-  fig.height = 4
-)
+  fig.height = 4,
+  dev = "png",
+  dpi = 300)
 
 library(tensortools)
 library(tidyverse)
@@ -113,7 +114,7 @@ It also includes random number generation and density functions for researchers 
 
 In the following sections, we will explain the theory behind tensor variate distributions, compare related tensor software across several programming languages, explain some design choices in the package, show a simulation study, and apply the models to a real-world problem.
 
-# Tensor notation and tensor-variate distributions
+# Tensor notation
 
 Tensor notation varies across disciplines, so we begin by defining the conventions and operations used in \pkg{tensortools}. 
 Tensors are a generalization of vectors and matrices, allowing us to represent multi-way data with a specific structure. 
@@ -289,30 +290,214 @@ matricization(A, k = 1)
 In \pkg{tensortools}, matricization is used to initialize and update mode-specific covariance matrices through ordinary matrix crossproducts.
 
 
-## Tensor-variate distributions
+# Tensor decompositions
+
+The idea of decompositions can also apply to tensors.
+The package provides the Tucker, PARAFAC, higher-order singular value, and Tensor-Train decompositions.
+
+The decompositions differ in how they represent low-dimensional structure and in how their ranks are specified:
+
+```{r decomposition-table, echo=FALSE, results='asis'}
+latex_output <- knitr::is_latex_output()
+
+decomposition_table <- data.frame(
+  Decomposition = c(
+    "Tucker",
+    "CP/PARAFAC",
+    "HOSVD",
+    "Tensor-Train"
+  ),
+  `Ranks` = c(
+    "$(R_{1}, \\dots, R_{D})$",
+    "$R$",
+    "$(R_{1}, \\dots, R_{D})$",
+    "$(R_{1}, \\dots, R_{D-1}$)"
+  ),
+  Core = c("Dense", "Superdiagonal", "All-orthogonal", "Several cores"),
+  Computation = c("Iterative higher-order orthogonal iteration", "Iterative alternating least squares",
+                  "Modewise SVD", "Sequential SVDs"),
+  check.names = FALSE
+)
+
+knitr::kable(
+  decomposition_table,
+  format = if (latex_output) "latex" else "html",
+  escape = FALSE,
+  booktabs = latex_output,
+  caption = "Mixing distributions used to construct the skewed tensor variate distributions."
+) |>
+  kableExtra::column_spec(
+    c(1, 2, 3, 4),
+    width = c("1.4in", "1in", "1.2in", "2in")
+  ) 
+```
+
+## Tucker decomposition
+
+The idea behind the Tucker decomposition is similar to rank factorization for matrices.
+The Tucker decomposition factorizes an order-$D$ tensor into a core tensor and a list of matrices [@tucker]:
+
+$$\tensor{A} = \tensor{B} \times_{1} \mat{U}_{1} \times_{2} \mat{U}_{2} \dots \times_D \mat{U}_{D}.$$
+
+The core tensor $\tensor{B}$ has the same order as the original tensor $\tensor{A}$, and the number of $\mat{U}$ matrices is also the number of modes.
+The core $\tensor{B}$ has dimensions $R_{1} \times \dots \times R_{D}$, and the tuple $(R_1, \ldots, R_D)$ is called the multilinear rank, or Tucker rank, of the approximation.
+
+Each matrix $\mat{U}_n$ contains principal factors for mode $n$.
+The $\mat{U}_n$ is a basis for the $n$th mode, and thus spans a subspace of $\field{R}^{I_n}$.
+The core tensor $\tensor{B}$ represents the strength of interactions between factors.
+The idea behind this decomposition is to reduce the dimensionality of the input.
+We are able to summarize the higher-order object $\tensor{A}$ with a smaller core tensor $\tensor{B}$ and several factor matrices $\mat{U}_{1}, \mat{U}_{2}, \dots, \mat{U}_{D}$.
+However, one key issue with the Tucker decomposition is that it is not unique.
+
+The `tucker()` function uses higher-order orthogonal iteration initialized by the HOSVD [@tensorDecomp].
+It alternately updates each factor matrix using the leading left singular vectors of the corresponding projected mode unfolding.
+Convergence is assessed using the relative Frobenius reconstruction error.
+
+```{r}
+A <- array(1:24, dim = c(2, 3, 4))
+res_tucker <- tucker(A, ranks = c(2, 2, 2))
+
+A_tucker <- tucker_reconstruct(res_tucker)
+frob_norm_diff(A_tucker, A)
+```
+
+
+This function does already exist in the `rTensor` package. However, it requires coercing any base R array into a tensor object. Additionally, its output computes the restructured tensor and its Frobenius norm. This behavior can be quite slow depending on how large the original tensor was. 
+```{r}
+(rTensor_tucker <- rTensor::tucker(rTensor::as.tensor(A), ranks = c(2, 2, 2)))
+```
+
+## PARAFAC decomposition
+
+The canonical polyadic (CP) decomposition, also called CANDECOMP/PARAFAC, represents a tensor as a sum of rank-one tensors.
+PARAFAC stands for parallel factor analysis while CANDECOMP stands for canonical decomposition.
+This decomposition is a special case of the Tucker decomposition, where the core tensor is superdiagonal.
+
+Let us say we want to approximate the tensor $\tensor{A} \in \field{R}^{I_{1} \times I_{2} \times \dots \times I_{D}}$ with a linear combination of $R$ rank 1 tensors.
+The approximation can be written as
+
+$$\tensor{A} \approx \sum_{r=1}^R \oneVect{\lambda}_{r} \ve{u}_{1}(:, r) \circ \dots \circ \ve{u}_{D}(:, r).$$
+
+where $\circ$ is a vector outer product.
+
+However, determining the rank of a tensor is an NP-hard problem, so it is difficult to determine the value of $R$ necessary to approximate the original tensor.
+The package computes this decomposition using the alternating least squares algorithm described by @CP and @CPtwo.
+For each mode, `cp()` updates the corresponding factor matrix using the mode unfolding, the Khatri--Rao product of the remaining factor matrices, and their Gram matrices.
+
+```{r}
+res_cp <- cp(A, R = 2)
+
+A_cp <- cp_reconstruct(res_cp)
+frob_norm_diff(A_cp, A)
+```
+
+
+This can also be done in `rTensor`. 
+```{r}
+(rTensor_cp <- rTensor::cp(rTensor::as.tensor(A), num_components = 2))
+```
+
+## Higher-order singular value decomposition
+
+The higher-order singular value decomposition (HOSVD) is a specific case of the Tucker decomposition with restrictions.
+The matrices $\mat{U}$ have orthogonal columns and the core tensor $\tensor{B}$ has subtensors, defined as setting the $n$th index to a value $\alpha$, that are orthogonal [@hosvd].
+Additionally, the subtensors have a descending order of Frobenius norms:
+
+$$\|\tensor{B}_{i_n = 1}\| \ge \|\tensor{B}_{i_n = 2}\|
+\ge \dots \ge \|\tensor{B}_{i_n = I_n}\| \ge 0.
+$$
+
+These Frobenius norms are the $n$-mode singular values of $\tensor{A}$, and the $i$th column $\mat{U}_n(:,i)$ is the $i$th $n$-mode singular vector.
+
+For each mode $d$, `hosvd()` obtains $\mat{U}_d$ from the leading $R_d$ left singular vectors of the mode-$d$ matricization $\mat{A}_{(d)}$.
+The core is then obtained by multiplying $\tensor{A}$ by the transposed factor matrices along their corresponding modes.
+
+```{r}
+res_hosvd <- hosvd(A, ranks = c(2, 2, 2))
+
+A_hosvd <- hosvd_reconstruct(res_hosvd)
+frob_norm_diff(A_hosvd, A)
+```
+
+
+This can also be done in `rTensor`.
+
+```{r}
+rTensor::hosvd(rTensor::as.tensor(A))
+```
+
+## Tensor-Train decomposition
+
+The Tensor-Train decomposition factorizes an order-$D$ tensor $\tensor{A}$ in a product of third-order tensors [@ttDecomp].
+These are denoted as $\mat{U}_{1}, \tensor{U}_{2}, \dots, \mat{U}_{D}$ and are called TT-cores:
+
+$$\tensor{A}(i_{1}, \dots, i_{D}) = \mat{U}_{1}(i_{1},:) \tensor{U}_{2}(:,i_{2},:) \tensor{U}_{3}(:,i_{3},:) \dots \mat{U}_{D}(:,i_{D}).
+$$
+
+The package computes this decomposition using the TT-SVD algorithm.
+The user can provide the ranks directly or allow them to be selected using an approximation accuracy.
+When `epsilon` is supplied, `tt()` uses the TT-SVD truncation threshold
+
+$$
+\delta = \frac{\epsilon}{\sqrt{D-1}}\lVert\tensor{A}\rVert_F.
+$$
+
+The resulting approximation $\widehat{\tensor{A}}$ satisfies
+
+$$
+\left\lVert\tensor{A}-\widehat{\tensor{A}}\right\rVert_F
+\leq
+\epsilon\left\lVert\tensor{A}\right\rVert_F.
+$$
+
+```{r}
+res_tt <- tt(A, ranks = c(2, 2, 2))
+A_tt <- tt_reconstruct(res_tt)
+frob_norm_diff(A_tt, A)
+
+res_tt_epsilon <- tt(A, epsilon = 1e-2)
+A_tt_epsilon <- tt_reconstruct(res_tt_epsilon)
+frob_norm_diff(A_tt_epsilon, A)
+```
+
+This can be done in the package `ttTensor.` In this package, the input tensor must specifically have dimension names. It also has `rTensor` as a dependency. 
+
+```{r}
+A_ttTensor <- A
+
+dimnames(A_ttTensor) <- list(I = paste0("i", 1:2),
+                             J = paste0("j", 1:3),
+                             K = paste0("k", 1:4))
+
+TTSVD(as.tensor(A_ttTensor), Ranks = c(p=2, q=2, r=2))
+
+TTSVD(as.tensor(A_ttTensor), accuracy = 1e-2)
+```
+
+# Tensor-variate distributions
 
 This section introduces the distributions that are used by \pkg{tensortools}, which are generalizations of matrix variate distributions. 
 
-### Univariate normal
+## Univariate normal
 First, consider a standard univariate normal draw $Z \sim N(0, 1).$ 
 If we shift and scale it to generate $X = \mu + \sigma Z$, then $X \sim N(\mu, \sigma^2).$ That is, an affine transformation of a standard univariate normal draw has a univariate normal distribution with mean $\mu$ and variance $\sigma^{2}$.
 
 
-### Multivariate normal
+## Multivariate normal
 Now let $\ve{Z}$ be a $p \times 1$ vector containing IID standard normal draws. 
 Then $\ve{Z} \sim N_{p}(\textbf{0}, \mat{I}_p)$. 
 If we let $\mat{A}\mat{A}^{T} = \symbf{\Sigma}$, then define $\ve{X} = \symbf{\mu} + \mat{A}\ve{Z}.$ Now $\ve{X} \sim N_{p}(\symbf{\mu}, \symbf{\Sigma}).$ 
 That is, $\ve{X}$ has a multivariate normal distribution with mean $\symbf{\mu}$ and covariance $\symbf{\Sigma}$.
 
 
-### Matrix-variate normal
+## Matrix-variate normal
 Let $\mat{Z}$ be a $p \times q$ matrix with IID standard normal entries. 
 Choose matrices $\mat{A}$ and $\mat{B}$ such that $\mat{U} = \mat{A}\mat{A}^{T}, \mat{V} = \mat{B}\mat{B}^{T}$. 
 Now define $\mat{X} = \mat{M} + \mat{A}\mat{Z}\mat{B}^{T}.$ We say that $\mat{X} \sim N_{pq}(\mat{M}, \mat{U}, \mat{V}).$ 
 That is, $\mat{X}$ has a matrix variate normal distribution.
 
 
-### Tensor-variate normal
+## Tensor-variate normal
 Let $\tensor{Z}$ be an order-$D$ tensor with IID standard normal entries and $\symbf{\Sigma}_{1}, \dots, \symbf{\Sigma}_{D}$ be positive definite matrices describing the variance-covariance structure along each mode. 
 For each mode, choose $\mat{A}_{j}$ such that $\symbf{\Sigma}_{d} = \mat{A}_{d}\mat{A}_{d}^{T}, d = 1,\dots,D$.
 
@@ -320,7 +505,7 @@ Then we can define $\tensor{X}$ as  $\tensor{X} = \tensor{M} + \tensor{Z} \nProd
 That is, $\tensor{X}$ has a tensor variate normal distribution with mean $\tensor{M}$ and covariance structure described by $\bigotimes_{d=D}^{1} \Sigma_{d}$.
 The notation $\bigotimes_{d=D}^{1} \Sigma_{d}$ is shorthand for $\Sigma_{D} \otimes \dots \otimes \Sigma_{1}$.
 
-### Skewed distributions as transformations of the tensor variate normal
+## Skewed distributions as transformations of the tensor variate normal
 
 To generate tensor variate skewed distributions, we use the normal variance mean mixture model [@variancemeanmix]. 
 An $r$-dimensional random vector $x$ is a normal variance-mean mixture with mixing distribution $F$ if, for a given $u \ge 0$ that follows a probability distribution $F$ on $[0, \infty)$, $x|u \sim N_r(\mu + u \beta, u \Sigma)$. 
@@ -907,6 +1092,8 @@ test_restrict <- function(draws, restrict) {
          df = full_mod$k - curr_mod$k,
          `p-val` = pchisq(statistic, df = df, lower.tail = FALSE))
 }
+
+test_restrict(tvn_draws, 1)
 ```
 
 
@@ -2095,64 +2282,3 @@ Then, the fitted-parameter-adjusted asymptotic variance is
 $$\hat{\Omega}_{m, \text{adj}} = 4(\hat{H}_{m} - \hat{G}_{m}\hat{I}^{+}\hat{G}_{m}^{T})$$
 
 where $\hat{I}^{+}$ is the Moore-Penrose pseudoinverse.
-
-## Tensor decompositions {#sec:tensor-decompositions}
-
-The idea of decompositions can also apply to tensors. 
-The package provides the Tucker, PARAFAC, higher-order singular value, and Tensor-Train decompositions.
-
-### Tucker decomposition
-
-The idea behind the Tucker decomposition is similar to rank factorization for matrices. 
-The Tucker decomposition factorizes an order-$D$ tensor into a core tensor and a list of matrices [@tucker]:
-
-$\tensor{A} = \tensor{B} \times_{1} \mat{U}_{1} \times_{2} \mat{U}_{2} \dots \times_D \mat{U}_{D}.$
-
-The core tensor $\tensor{B}$ has the same order as the original tensor $\tensor{A}$, and the number of $\mat{U}$ matrices is also the number of modes. 
-The core $\tensor{B}$ has dimensions $R_{1} \times \dots R_{D}$ which are the Tucker rank.
-
-Each matrix $\mat{U}_n$ contains principal factors for mode $n$. 
-The $\mat{U}_n$ is a basis for the $n$th mode, and thus spans a subspace of $\field{R}^{I_n}$. 
-The core tensor $\tensor{B}$ represents the strength of interactions between factors. 
-The idea behind this decomposition is to reduce the dimensionality of the input. 
-We are able to summarize the higher-order object $\tensor{A}$ with a smaller core tensor $\tensor{B}$ and several factor matrices $\mat{U}_{1}, \mat{U}_{2}, \dots, \mat{U}_{D}$. 
-However, one key issue with the Tucker decomposition is that it is not unique.
-
-### PARAFAC decomposition
-
-The PARAFAC decomposition has several other names---CANDECOMP, CP, and Tensor Rank decomposition. 
-PARAFAC stands for parallel factor analysis while CANDECOMP stands for canonical decomposition. 
-This decomposition is a special case of the Tucker decomposition, where the core tensor is superdiagonal.
-
-Let us say we want to approximate the tensor $\tensor{A} \in \field{R}^{I_{1} \times I_{2} \times \dots \times I_{D}}$ with a linear combination of $R$ rank 1 tensors. 
-The approximation can be written as
-
-$$\tensor{A} \approx \sum_{r=1}^R \oneVect{\lambda}_{r} \ve{u}_{1}(:, r) \circ \dots \circ \ve{u}_{D}(:, r).$$
-
-where $\circ$ is a vector outer product.
-
-However, determining the rank of a tensor is an NP-hard problem, so it is difficult to determine the value of $R$ necessary to approximate the original tensor. 
-The package computes this decomposition using the alternating least squares algorithm described by @CP and @CPtwo.
-
-### Higher-order singular value decomposition
-
-The higher-order singular value decomposition (HOSVD) is a specific case of the Tucker decomposition with restrictions. 
-The matrices $\mat{U}$ have orthogonal columns and the core tensor $\tensor{B}$ has subtensors, defined as setting the $n$th index to a value $\alpha$, that are orthogonal [@hosvd]. 
-Additionally, the subtensors have a descending order of Frobenius norms:
-
-$$\|\tensor{B}_{i_n = 1}\| \ge \|\tensor{B}_{i_n = 2}\|
-\ge \dots \ge \|\tensor{B}_{i_n = I_n}\| \ge 0.
-$$
-
-These Frobenius norms are the $n$-mode singular values of $\tensor{A}$, and the vector $U_i(n)$ is the $i$th $n$-mode singular vector.
-
-### Tensor-Train decomposition
-
-The Tensor-Train decomposition factorizes an order-$D$ tensor $\tensor{A}$ in a product of third-order tensors [@ttDecomp]. 
-These are denoted as $\mat{U}_{1}, \tensor{U}_{2}, \dots, \mat{U}_{D}$ and are called TT-cores:
-
-$$\tensor{A}(i_{1}, \dots, i_{D}) = \mat{U}_{1}(i_{1},:) \tensor{U}_{2}(:,i_{2},:) \tensor{U}_{3}(:,i_{3},:) \dots \mat{U}_{D}(:,i_{D}).
-$$
-
-The package computes this decomposition using the TT-SVD algorithm. 
-The user can provide the ranks directly or allow them to be selected using an approximation accuracy.
