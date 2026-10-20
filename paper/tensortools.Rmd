@@ -64,23 +64,17 @@ CTV: []
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  echo = TRUE,
-  warning = FALSE,
-  message = FALSE,
-  fig.align = "center",
-  fig.width = 6,
-  fig.height = 4,
-  dev = "png",
-  dpi = 300)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", 
+                      echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.align = "center", fig.width = 6, fig.height = 4,
+                      dev = "png", dpi = 300)
 
 library(tensortools)
 library(tidyverse)
 library(patchwork) 
 library(dplyr)
 library(purrr)
+library(kableExtra)
 set.seed(2026)
 
 plot_matrix <- function(input, title = NULL) { # function to plot matrices
@@ -249,7 +243,7 @@ Its mode $k$ matricization is a matrix $\mat{A}_{(k)} \in \field{R}^{I_{k} \time
 The mode $k$ forms the rows of $\mat{A}_{(k)}$ while the remaining modes form the columns. 
 Thus the entry $\tensor{A}({i_{1}, \dots, i_{D}})$ is in $\mat{A}_{(k)}(i_{k}, j)$ where $j$ indexes the remaining modes. 
 
-In \pkg{tensortools}, this function is called `matricization()`. It accepts a tensor and $k$.
+In \pkg{tensortools}, this function is called `matricize()`. It accepts a tensor and $k$.
 
 ### Example
 
@@ -283,7 +277,7 @@ $$
 ```{r}
 A <- tensor(array(1:24, dim = c(4, 3, 2)))
 
-matricization(A, k = 1)
+matricize(A, k = 1)
 ```
 
 
@@ -311,7 +305,7 @@ decomposition_table <- data.frame(
     "$(R_{1}, \\dots, R_{D})$",
     "$R$",
     "$(R_{1}, \\dots, R_{D})$",
-    "$(R_{1}, \\dots, R_{D-1}$)"
+    "$(R_{1}, \\dots, R_{D-1})$"
   ),
   Core = c("Dense", "Superdiagonal", "All-orthogonal", "Several cores"),
   Computation = c("Iterative higher-order orthogonal iteration", "Iterative alternating least squares",
@@ -324,9 +318,12 @@ knitr::kable(
   format = if (latex_output) "latex" else "html",
   escape = FALSE,
   booktabs = latex_output,
-  caption = "Mixing distributions used to construct the skewed tensor variate distributions."
+  caption = "Types of Decompositions"
 ) |>
-  kableExtra::column_spec(
+  kable_styling(
+    latex_options = if (latex_output) "HOLD_position" else NULL
+  ) |> 
+  column_spec(
     c(1, 2, 3, 4),
     width = c("1.4in", "1in", "1.2in", "2in")
   ) 
@@ -356,6 +353,7 @@ Convergence is assessed using the relative Frobenius reconstruction error.
 ```{r}
 A <- array(1:24, dim = c(2, 3, 4))
 res_tucker <- tucker(A, ranks = c(2, 2, 2))
+glimpse(res_tucker)
 
 A_tucker <- tucker_reconstruct(res_tucker)
 frob_norm_diff(A_tucker, A)
@@ -364,7 +362,9 @@ frob_norm_diff(A_tucker, A)
 
 This function does already exist in the `rTensor` package. However, it requires coercing any base R array into a tensor object. Additionally, its output computes the restructured tensor and its Frobenius norm. This behavior can be quite slow depending on how large the original tensor was. 
 ```{r}
-(rTensor_tucker <- rTensor::tucker(rTensor::as.tensor(A), ranks = c(2, 2, 2)))
+rTensor_tucker <- rTensor::tucker(rTensor::as.tensor(A), ranks = c(2, 2, 2))
+
+glimpse(rTensor_tucker) 
 ```
 
 ## PARAFAC decomposition
@@ -386,6 +386,7 @@ For each mode, `cp()` updates the corresponding factor matrix using the mode unf
 
 ```{r}
 res_cp <- cp(A, R = 2)
+glimpse(res_cp)
 
 A_cp <- cp_reconstruct(res_cp)
 frob_norm_diff(A_cp, A)
@@ -394,7 +395,9 @@ frob_norm_diff(A_cp, A)
 
 This can also be done in `rTensor`. 
 ```{r}
-(rTensor_cp <- rTensor::cp(rTensor::as.tensor(A), num_components = 2))
+rTensor_cp <- rTensor::cp(rTensor::as.tensor(A), num_components = 2)
+
+glimpse(rTensor_cp)
 ```
 
 ## Higher-order singular value decomposition
@@ -414,6 +417,7 @@ The core is then obtained by multiplying $\tensor{A}$ by the transposed factor m
 
 ```{r}
 res_hosvd <- hosvd(A, ranks = c(2, 2, 2))
+glimpse(res_hosvd)
 
 A_hosvd <- hosvd_reconstruct(res_hosvd)
 frob_norm_diff(A_hosvd, A)
@@ -423,7 +427,9 @@ frob_norm_diff(A_hosvd, A)
 This can also be done in `rTensor`.
 
 ```{r}
-rTensor::hosvd(rTensor::as.tensor(A))
+rTensor_hosvd <- rTensor::hosvd(rTensor::as.tensor(A))
+
+glimpse(rTensor_hosvd)
 ```
 
 ## Tensor-Train decomposition
@@ -452,6 +458,8 @@ $$
 
 ```{r}
 res_tt <- tt(A, ranks = c(2, 2, 2))
+glimpse(res_tt)
+
 A_tt <- tt_reconstruct(res_tt)
 frob_norm_diff(A_tt, A)
 
@@ -469,9 +477,10 @@ dimnames(A_ttTensor) <- list(I = paste0("i", 1:2),
                              J = paste0("j", 1:3),
                              K = paste0("k", 1:4))
 
-TTSVD(as.tensor(A_ttTensor), Ranks = c(p=2, q=2, r=2))
+tt_ranks <- ttTensor::TTSVD(rTensor::as.tensor(A_ttTensor), Ranks = c(p=2, q=2, r=2))
+tt_epsilon <- ttTensor::TTSVD(rTensor::as.tensor(A_ttTensor), accuracy = 1e-2)
 
-TTSVD(as.tensor(A_ttTensor), accuracy = 1e-2)
+glimpse(tt_ranks)
 ```
 
 # Tensor-variate distributions
@@ -560,7 +569,7 @@ knitr::kable(
   booktabs = latex_output,
   caption = "Mixing distributions used to construct the skewed tensor variate distributions."
 ) |>
-  kableExtra::column_spec(
+  column_spec(
     c(1, 2, 3, 4),
     width = c("1.55in", "1.65in", "0.85in", "1.35in")
   )
@@ -612,7 +621,7 @@ software_feature_crosswalk <- data.frame(
   `R package` = c(
     yes, yes, yes, yes, no, no, no
   ),
-  `Tensor operations` = c(
+  `Operations` = c(
     yes, yes, yes, no, yes, yes, yes
   ),
   Decompositions = c(
@@ -621,7 +630,7 @@ software_feature_crosswalk <- data.frame(
   `Tensor normal` = c(
     yes, yes, no, no, no, no, no
   ),
-  `Skewed families` = c(
+  `Tensor skewed` = c(
     yes, no, no, no, no, no, no
   ),
   `Covariance LRT` = c(
@@ -647,16 +656,18 @@ table_output <- knitr::kable(
 
 if (latex_output) {
   table_output <- table_output |>
-    kableExtra::kable_styling(
-      font_size = 7,
+    kable_styling(
+      font_size = 12,
       latex_options = "scale_down"
-    )
+    ) |> 
+      row_spec(4, extra_latex_after = "\\noalign{\\hrule height 1pt}")
 } else {
   table_output <- table_output |>
-    kableExtra::kable_styling(
+    kable_styling(
       font_size = 12,
       full_width = FALSE
-    )
+    ) |> 
+      row_spec(4, extra_css = "border-bottom: 2px solid black;")
 }
 
 table_output
@@ -670,7 +681,7 @@ The main goal of \pkg{tensortools} is to provide functions generating tensor obs
 
 Distribution functions follow familiar R naming conventions: names beginning with `r` generate random draws, names beginning with `d` evaluate densities, and `tensor_mle()` fits a selected tensor-variate model. 
 
-Tensor algebra helpers such as `matricization()`, `n_prod()`, `nm_prod()`, `tensor_prod()`, and `khatri_rao()` are available to users and are also used internally by the likelihood and decomposition routines. 
+Tensor algebra helpers such as `matricize()`, `n_prod()`, `nm_prod()`, `tensor_prod()`, and `khatri_rao()` are available to users and are also used internally by the likelihood and decomposition routines. 
 Decomposition functions are grouped with explicit reconstruction helpers: `cp()` and `cp_reconstruct()`, `tucker()` and `tucker_reconstruct()`, `hosvd()` and `hosvd_reconstruct()`, and `tt()` and `tt_reconstruct()`.
 
 One intentional decision was to store independent, identically distributed draws from a tensor variate distribution as a lightweight S3 array subclass. 
@@ -1090,7 +1101,8 @@ test_restrict <- function(draws, restrict) {
   tibble(restrict = paste(restrict, collapse = ", "),
          statistic = 2 * (full_mod$loglik - curr_mod$loglik),
          df = full_mod$k - curr_mod$k,
-         `p-val` = pchisq(statistic, df = df, lower.tail = FALSE))
+         `p-val` = format.pval(pchisq(statistic, df = df, lower.tail = FALSE),
+                               digits = 3, eps = 1e-16))
 }
 
 test_restrict(tvn_draws, 1)
@@ -1100,8 +1112,8 @@ test_restrict(tvn_draws, 1)
 As expected, all of the restrictions lead to a model that is significantly different from the full model. 
 All the covariance matrices are not the identity to best model the draws.
 ```{r lrt-test-all, cache = TRUE}
-res <- map_dfr(list(NULL, c(1), c(2), c(3), c(1, 2), c(1, 3), c(2, 3)),
-        draws = tvn_draws, test_restrict)
+res <- map_dfr(list(1, 2, 3, c(1, 2), c(1, 3), c(2, 3)), 
+               draws = tvn_draws, test_restrict)
 ```
 
 ```{r, echo = FALSE}
@@ -1117,7 +1129,7 @@ second_identity <- rtnorm(n = 1e3, mu = mu_true,
                           sigmas = list(S1, diag(3), S3))
 
 res_second_identity <-
-  map_dfr(list(NULL, c(1), c(2), c(3), c(1, 2), c(1, 3), c(2, 3)),
+  map_dfr(list(1, 2, 3, c(1, 2), c(1, 3), c(2, 3)),
           draws = second_identity, test_restrict)
 
 knitr::kable(
@@ -1283,9 +1295,9 @@ load("obs_resnet.Rdata")
 
 fits <- list(
   tensor = tensor_mle(obs, model = "normal", tol = 1e-6),
-  first_mat = tensor_mle(matricization(obs, 1), model = "normal", tol = 1e-6),
-  second_mat = tensor_mle(matricization(obs, 2), model = "normal", tol = 1e-6),
-  third_mat = tensor_mle(matricization(obs, 3), model = "normal",  tol = 1e-6))
+  first_mat = tensor_mle(matricize(obs, 1), model = "normal", tol = 1e-6),
+  second_mat = tensor_mle(matricize(obs, 2), model = "normal", tol = 1e-6),
+  third_mat = tensor_mle(matricize(obs, 3), model = "normal",  tol = 1e-6))
 
 resnet_res <-
   tibble(model = names(fits),
@@ -1377,27 +1389,27 @@ fit_models <- function(X_train) {
     ),
 
     first_mat = tensor_mle(
-      matricization(X_train, 1),
+      matricize(X_train, 1),
       model = "normal",
       tol = 1e-5,
       init = fits$first_mat
     ),
 
     second_mat = tensor_mle(
-      matricization(X_train, 2),
+      matricize(X_train, 2),
       model = "normal",
       tol = 1e-5,
       init = fits$second_mat
     ),
 
     third_mat = tensor_mle(
-      matricization(X_train, 3),
+      matricize(X_train, 3),
       model = "normal",
       tol = 1e-5,
       init = fits$third_mat
     ),
       fourth_mat = tensor_mle(
-      matricization(X_train, 4),
+      matricize(X_train, 4),
       model = "normal",
       tol = 1e-5,
       init = fits$fourth_mat
@@ -1433,24 +1445,24 @@ res <- function(i) {
   )),
 
   first = log(dtnorm(
-    matricization(X_test, 1),
+    matricize(X_test, 1),
     mu = fits_i$first_mat$mu,
     sigmas = fits_i$first_mat$sigmas
   )),
 
   second = log(dtnorm(
-    matricization(X_test, 2),
+    matricize(X_test, 2),
     mu = fits_i$second_mat$mu,
     sigmas = fits_i$second_mat$sigmas
   )),
 
   third = log(dtnorm(
-    matricization(X_test, 3),
+    matricize(X_test, 3),
     mu = fits_i$third_mat$mu,
     sigmas = fits_i$third_mat$sigmas
   )),
   fourth = log(dtnorm(
-    matricization(X_test, 4),
+    matricize(X_test, 4),
     mu = fits_i$fourth_mat$mu,
     sigmas = fits_i$fourth_mat$sigmas
   ))

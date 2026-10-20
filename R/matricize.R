@@ -1,17 +1,19 @@
-#' matricization
+#' Matricize a tensor
 #'
-#' Compute the matricization of a tensor along the kth mode.
+#' Unfold an array or tensor along the kth mode.
 #'
-#' @param array An array representing a tensor.
-#' @param k A mode to matricize along.
+#' @param X An array or `tensor` object.
+#' @param k The mode to place along the rows.
 #'
-#' @return An array: the result of the nm-mode product between A and B.
+#' @return For an array, a matrix whose rows correspond to mode `k`. For a
+#'   `tensor` object containing multiple draws, a `tensor` object containing the
+#'   matricized draws.
 #'
 #' @examples
 #' X <- array(1:24, dim = c(2, 3, 4))
-#' matricization(X, 1)
-#' matricization(X, 2)
-#' matricization(X, 3)
+#' matricize(X, 1)
+#' matricize(X, 2)
+#' matricize(X, 3)
 #' @export
 matricization <- function(X, k) {
   if (inherits(X, "tensor")) {
