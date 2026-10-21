@@ -329,6 +329,7 @@ knitr::kable(
   ) 
 ```
 
+
 ## Tucker decomposition
 
 The idea behind the Tucker decomposition is similar to rank factorization for matrices.
@@ -457,7 +458,7 @@ $$
 $$
 
 ```{r}
-res_tt <- tt(A, ranks = c(2, 2, 2))
+res_tt <- tt(A, ranks = c(2, 2))
 glimpse(res_tt)
 
 A_tt <- tt_reconstruct(res_tt)
@@ -477,10 +478,329 @@ dimnames(A_ttTensor) <- list(I = paste0("i", 1:2),
                              J = paste0("j", 1:3),
                              K = paste0("k", 1:4))
 
-tt_ranks <- ttTensor::TTSVD(rTensor::as.tensor(A_ttTensor), Ranks = c(p=2, q=2, r=2))
+tt_ranks <- ttTensor::TTSVD(rTensor::as.tensor(A_ttTensor), Ranks = c(p=2, q=2))
 tt_epsilon <- ttTensor::TTSVD(rTensor::as.tensor(A_ttTensor), accuracy = 1e-2)
 
 glimpse(tt_ranks)
+```
+
+
+## Decomposition performance
+
+The following comparison uses tensors with approximately the same number of
+elements but different orders. Each decomposition uses rank two. CP and Tucker
+are run for five fixed sweeps so that package-specific convergence rules do not
+affect the timing comparison. Input conversion to an `rTensor` object is done
+before timing. Each table entry gives the median runtime followed by the total
+memory allocated during one evaluation. For CP, Tucker, and HOSVD, both
+implementations return the decomposition and a dense reconstruction; TT-SVD
+returns only the cores in both packages. The additional `tensortools (no
+reconstruct)` columns report the compact decomposition-only workflow.
+
+```{r, decomp-benchmark, echo = FALSE}
+benchmark_decomposition_table <- function(
+    cases = list(
+    "Order 3: 4x4x4" = rep(4L, 3),
+    "Order 4: 4x4x4x4" = rep(4L, 4),
+    "Order 5: 4x4x4x4x4" = rep(4L, 5)
+  ),
+    # cases = list(
+    #   "Order 3: 30x30x30" = c(30L, 30L, 30L),
+    #   "Order 4: 13x13x13x13" = c(13L, 13L, 13L, 13L),
+    #   "Order 5: 8x8x8x8x8" = c(8L, 8L, 8L, 8L, 8L)
+    # ),
+    rank = 2L,
+    sweeps = 5L,
+    iterations = 20L,
+    seed = 2026L) {
+
+  required <- c("bench", "dplyr", "purrr", "tibble", "tidyr",
+                "rTensor", "ttTensor", "tensortools")
+  missing <- required[!vapply(required, requireNamespace, logical(1L),
+                              quietly = TRUE)]
+  if (length(missing)) {
+    stop("Install the following packages first: ", paste(missing, collapse = ", "))
+  }
+
+  if (is.null(names(cases)) || any(names(cases) == "")) {
+    stop("`cases` must be a named list of dimension vectors.")
+  }
+  if (rank < 1L || sweeps < 1L || iterations < 1L) {
+    stop("`rank`, `sweeps`, and `iterations` must be positive integers.")
+  }
+  if (any(vapply(cases, function(dims) any(dims < rank), logical(1L)))) {
+    stop("Every mode dimension must be at least as large as `rank`.")
+  }
+
+  benchmark_one <- function(fun) {
+    null_connection <- file(nullfile(), open = "wt")
+    sink(null_connection)
+    on.exit({
+      sink()
+      close(null_connection)
+    }, add = TRUE)
+
+    # Warm up lazy loading, byte-code compilation, and underlying BLAS/LAPACK.
+    invisible(fun())
+
+    bench::mark(
+      fun(),
+      iterations = iterations,
+      check = FALSE,
+      memory = TRUE,
+      filter_gc = TRUE
+    )[1L, ]
+  }
+
+  format_measurement <- function(time, memory) {
+    paste0(
+      trimws(format(time, digits = 3)),
+      " / ",
+      trimws(format(memory, digits = 3))
+    )
+  }
+
+  set.seed(seed)
+
+  results <- purrr::imap_dfr(cases, function(dims, case_name) {
+    dims <- as.integer(dims)
+    order <- length(dims)
+    A <- array(stats::rnorm(prod(dims)), dim = dims)
+
+    dim_names <- Map(
+      function(n, mode) paste0("i", mode, "_", seq_len(n)),
+      dims,
+      seq_along(dims)
+    )
+    names(dim_names) <- paste0("mode", seq_along(dims))
+    dimnames(A) <- dim_names
+
+    A_rTensor <- rTensor::as.tensor(A)
+    mode_ranks <- rep.int(as.integer(rank), order)
+    tt_ranks <- rep.int(as.integer(rank), order - 1L)
+    names(tt_ranks) <- paste0("r", seq_along(tt_ranks))
+
+    methods <- list(
+      list(
+        decomposition = "CP",
+        package = "tensortools",
+        fun = function() {
+          fit <- suppressMessages(
+            tensortools::cp(A, R = rank, max_iter = sweeps, tol = 0)
+          )
+          list(fit = fit, est = tensortools::cp_reconstruct(fit))
+        }
+      ),
+      list(
+        decomposition = "CP",
+        package = "rTensor",
+        fun = function() rTensor::cp(
+          A_rTensor,
+          num_components = rank,
+          max_iter = sweeps + 1L,
+          tol = 0
+        )
+      ),
+      list(
+        decomposition = "Tucker",
+        package = "tensortools",
+        fun = function() {
+          fit <- suppressMessages(
+            tensortools::tucker(
+              A,
+              ranks = mode_ranks,
+              max_iter = sweeps,
+              tol = 0
+            )
+          )
+          list(fit = fit, est = tensortools::tucker_reconstruct(fit))
+        }
+      ),
+      list(
+        decomposition = "Tucker",
+        package = "rTensor",
+        fun = function() rTensor::tucker(
+          A_rTensor,
+          ranks = mode_ranks,
+          max_iter = sweeps + 1L,
+          tol = 0
+        )
+      ),
+      list(
+        decomposition = "HOSVD",
+        package = "tensortools",
+        fun = function() {
+          fit <- tensortools::hosvd(A, ranks = mode_ranks)
+          list(fit = fit, est = tensortools::hosvd_reconstruct(fit))
+        }
+      ),
+      list(
+        decomposition = "HOSVD",
+        package = "rTensor",
+        fun = function() rTensor::hosvd(A_rTensor, ranks = mode_ranks)
+      ),
+      list(
+        decomposition = "TT-SVD",
+        package = "tensortools",
+        fun = function() tensortools::tt(A, ranks = tt_ranks)
+      ),
+      list(
+        decomposition = "TT-SVD",
+        package = "ttTensor",
+        fun = function() ttTensor::TTSVD(A_rTensor, Ranks = tt_ranks)
+      )
+    )
+
+    purrr::map_dfr(methods, function(method) {
+      measured <- benchmark_one(method$fun)
+
+      tibble::tibble(
+        decomposition = method$decomposition,
+        package = method$package,
+        case = case_name,
+        order = order,
+        modes = paste(dims, collapse = "x"),
+        elements = prod(dims),
+        median_seconds = as.numeric(measured$median),
+        memory_bytes = as.numeric(measured$mem_alloc),
+        n_gc = measured$n_gc,
+        value = format_measurement(measured$median, measured$mem_alloc)
+      )
+    })
+  })
+
+  method_levels <- c(
+    "CP -- rTensor", "CP -- tensortools",
+    "Tucker -- rTensor", "Tucker -- tensortools",
+    "HOSVD -- rTensor", "HOSVD -- tensortools",
+    "TT-SVD -- ttTensor", "TT-SVD -- tensortools"
+  )
+
+  results <- results |>
+    dplyr::mutate(
+      method = factor(
+        paste(decomposition, package, sep = " -- "),
+        levels = method_levels
+      )
+    ) |>
+    dplyr::arrange(method, match(case, names(cases)))
+
+  table_columns <- c(
+    "CP__rTensor", "CP__tensortools",
+    "Tucker__rTensor", "Tucker__tensortools",
+    "HOSVD__rTensor", "HOSVD__tensortools",
+    "TT-SVD__ttTensor", "TT-SVD__tensortools"
+  )
+
+  table <- results |>
+    dplyr::mutate(
+      table_column = paste(decomposition, package, sep = "__"),
+      case = factor(case, levels = names(cases))
+    ) |>
+    dplyr::select(case, table_column, value) |>
+    tidyr::pivot_wider(names_from = table_column, values_from = value) |>
+    dplyr::select(case, dplyr::all_of(table_columns)) |>
+    dplyr::mutate(case = as.character(case))
+
+  list(
+    table = table,
+    results = results,
+    settings = list(
+      rank = rank,
+      sweeps = sweeps,
+      iterations = iterations,
+      seed = seed
+    )
+  )
+}
+```
+
+
+```{r decomposition-benchmark, cache=TRUE}
+decomposition_benchmark <- benchmark_decomposition_table(
+  cases = list(
+    "Order 3: 4x4x4" = rep(4L, 3),
+    "Order 4: 4x4x4x4" = rep(4L, 4),
+    "Order 5: 4x4x4x4x4" = rep(4L, 5),
+    "Order 6: 4x4x4x4x4x4" = rep(4L, 6), 
+    "Order 7: 4x4x4x4x4x4x4" = rep(4L, 7),
+    "Order 8: 4x4x4x4x4x4x4x4" = rep(4L, 8)),
+  rank = 2,
+  sweeps = 5,
+  iterations = 20,
+  seed = 2026
+)
+
+decomposition_bench <- decomposition_benchmark$table |>
+  knitr::kable(
+    caption = "Decomposition performance: median runtime / allocated memory.",
+    col.names = c(
+      "Tensor order and modes",
+      "rTensor", "tensortools", 
+      "rTensor", "tensortools", 
+      "rTensor", "tensortools", 
+      "ttTensor", "tensortools"
+    ),
+    align = c("l", rep("c", 11)),
+    booktabs = latex_output
+  ) |>
+  add_header_above(
+    c(" " = 1, "CP" = 2, "Tucker" = 2, "HOSVD" = 2, "TT-SVD" = 2),
+    bold = TRUE
+  )
+
+if (latex_output) {
+  decomposition_bench <- decomposition_bench |>
+    kable_styling(
+      full_width = FALSE,
+      font_size = 7,
+      latex_options = c("HOLD_position", "scale_down")
+    )
+} else {
+  decomposition_bench <- decomposition_bench |>
+    kable_styling(
+      full_width = FALSE,
+      bootstrap_options = c("striped", "hover", "condensed", "responsive")
+    )
+}
+
+decomposition_bench
+```
+
+```{r, fig.cap = "The plots from left to right show the Rosenblatt transformation being applied sequentially. The leftmost plot contains the points of the original data, the middle has $X_{1}$ transformed into $U_{1}$, and the right has $X_{2}$ transformed into $U_{2}$."}
+# decomposition_benchmark$results |> 
+#   filter(package != "tensortools (no reconstruct)") |> 
+#   ggplot() +
+#   geom_point(aes(x = as.factor(order), y = median_seconds, shape = decomposition), alpha = 0.8) + 
+#   theme_minimal()
+
+runtime_plot <-
+  decomposition_benchmark$results |>
+  filter(package != "tensortools (no reconstruct)") |>
+  ggplot(aes(x = order, y = median_seconds, color = package, group = package)) +
+  facet_wrap(~decomposition) +
+  geom_line(alpha = 0.6) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  scale_x_continuous(breaks = sort(unique(decomposition_benchmark$results$order))) +
+  scale_y_log10() + 
+  labs(x = "Tensor order", y = "Median runtime (seconds)", color = "Package") +
+  theme_minimal() 
+
+memory_plot <- 
+  decomposition_benchmark$results |>
+  filter(package != "tensortools (no reconstruct)") |>
+  ggplot(aes(x = order, y = memory_bytes, color = package, group = package)) +
+  facet_wrap(~decomposition) +
+  geom_line(alpha = 0.6) +
+  geom_point(size = 2.5, alpha = 0.8) +
+  scale_x_continuous(breaks = sort(unique(decomposition_benchmark$results$order))) +
+  scale_y_log10() +
+  labs(x = "Tensor order", y = "Memory (bytes)", color = "Package") +
+  theme_minimal() 
+  
+(runtime_plot/memory_plot) + 
+  plot_layout(guides = "collect", axes = "collect") &
+  theme(legend.position = "bottom")
 ```
 
 # Tensor-variate distributions
@@ -751,10 +1071,17 @@ dtnorm(pull_draw(tvn_draws, 1), mu = mu_true, sigmas = sigmas_true)
 # Model fitting and inference
 
 One major functionality that tensortools provides is MLE estimation. 
-This is done via two different algorithms: for the tensor variate normal distribution, a flip-flop algorithm is used. 
+This is done via two different algorithms: for the tensor variate normal distribution, a flip-flop algorithm is used.  The separable covariance restriction and its curved exponential-family representation are described in the [Appendix section on the tensor variate normal model](#sec:tvn-curved-family).
+
 For tensor variate skewed distributions, an EM algorithm is used.
 
-The separable covariance restriction and its curved exponential-family representation are described in the [Appendix section on the tensor variate normal model](#sec:tvn-curved-family).
+The normal variance-mean mixture model has an unobserved positive random variable $W_{i}$ for each observation. The EM algorithm treats it as missing data. Given the current parameter estimates, it computes
+
+$$a_{i} = E[W_{i}|\tensor{X}_{i}] \quad b_{i} = E[W_{i}^{-1}|\tensor{X}_{i}], \quad c_{i} = E[\log W_{i}|\tensor{X}_{i}].$$
+
+For each of the skewed distributions, the conditional distribution of $W_{i}$ is generalized inverse Gaussian, allowing these to be evaluated using Bessel-function ratios. In the M-step, the conditional expectations are used as weights to update the parameters. Iteration continues until the relative change in observed log-likelihood falls below a specified tolerance.
+
+A full derivation is provided in the [Appendix section on the EM algorithm](#sec:em-explanation).
 
 The initialization rules for the flip-flop and EM algorithms are provided in the [Appendix section on parameter initialization](#sec:parameter-initialization).
 
@@ -2016,6 +2343,616 @@ The density function of the multilinear normal distribution is @tensornormprop
 $$f(\tensor{X}) (2\pi)^{-n^*/2} \left(\prod_{d=1}^{D} |\Sigma_d|^{-n^*/(2n_d)}\right)\exp\left\{-\frac{1}{2} \operatorname{vec}(\tensor{X}-\tensor{M})^T \left(\bigotimes_{d=1}^{D}\Sigma_d^{-1}\right) \operatorname{vec}(\tensor{X}-\tensor{M})\right\}.$$
 
 Each $\Sigma_d$ is positive definite and describes the covariance structure corresponding to mode $d$.
+
+## EM Explanation {#sec:em-explanation}
+
+The idea of EM is that, if we had the complete data, maximizing the complete likelihood would be simpler to account for the missing data. For the skewed tensor variate distributions, the missing values are the positive mixing variables $W_1,\dots,W_N$. The model is
+
+$$
+\tensor{X}_{i} = \tensor{M} + W_{i} \tensor{A} + \sqrt{W_{i}}\tensor{V}_{i},
+\qquad
+\tensor{V}_{i} \sim \mathcal{N}_{n^*}
+\left(\mathbb{O}, \bigotimes_{d=1}^{D}\Sigma_{d}\right),
+$$
+
+where
+
+$$
+n^*=\prod_{d=1}^{D} n_d.
+$$
+
+If we knew the latent draws $W_{i} = w_{i}$, then the distribution of $X_{i}$ is tensor variate normal. 
+
+$$\tensor{X}_{i}$$
+
+Conditional on $W_i=w_i$, the vectorized tensor is multivariate normal:
+
+$$
+\ve{x}_i \mid w_i
+\sim
+N_{n^*}
+\left(
+\ve{m}+w_i\ve{a},
+w_i\mat{K}_{\Sigma}
+\right).
+$$
+
+The important point is that $w_i$ scales the full vectorized covariance matrix once. It is not the same as multiplying every mode covariance matrix by $w_i$, because
+
+$$
+\bigotimes_{d=1}^{D}(w_i\Sigma_d)
+=
+w_i^D
+\bigotimes_{d=1}^{D}\Sigma_d.
+$$
+
+The intended covariance is instead
+
+$$
+w_i
+\bigotimes_{d=1}^{D}\Sigma_d.
+$$
+
+Equivalently, the same full covariance could be represented by putting $w_i$ into one mode covariance,
+
+$$
+(w_i\Sigma_1)\otimes \Sigma_2 \otimes \cdots \otimes \Sigma_D
+=
+w_i
+\bigotimes_{d=1}^{D}\Sigma_d,
+$$
+
+or by distributing $w_i^{1/D}$ across all modes,
+
+$$
+\bigotimes_{d=1}^{D}(w_i^{1/D}\Sigma_d)
+=
+w_i
+\bigotimes_{d=1}^{D}\Sigma_d.
+$$
+
+The following matrix properties are used to derive the conditional density.
+
+1. If $\mat{B}$ is a $p \times p$ matrix and $c>0$ is a scalar, then
+
+$$
+|c\mat{B}|=c^p|\mat{B}|.
+$$
+
+This holds because multiplying a $p \times p$ matrix by $c$ multiplies each of its $p$ rows by $c$.
+
+2. If $\mat{B}$ is $p \times p$ and $\mat{C}$ is $q \times q$, then
+
+$$
+|\mat{B}\otimes\mat{C}|
+=
+|\mat{B}|^q|\mat{C}|^p.
+$$
+
+One way to see this is through eigenvalues. The eigenvalues of $\mat{B}\otimes\mat{C}$ are all products $\lambda_r(\mat{B})\lambda_s(\mat{C})$, so their product is $|\mat{B}|^q|\mat{C}|^p$.
+
+Applying this property repeatedly gives
+
+$$
+\left|
+\bigotimes_{d=1}^{D}\Sigma_d
+\right|
+=
+\prod_{d=1}^{D}
+|\Sigma_d|^{n^*/n_d}.
+$$
+
+3. The inverse of a scalar multiple and the inverse of a Kronecker product are
+
+$$
+(w_i\mat{K}_{\Sigma})^{-1}
+=
+\frac{1}{w_i}\mat{K}_{\Sigma}^{-1},
+\qquad
+\left(\bigotimes_{d=1}^{D}\Sigma_d\right)^{-1}
+=
+\bigotimes_{d=1}^{D}\Sigma_d^{-1}.
+$$
+
+The second identity follows from the mixed-product property
+
+$$
+(\mat{B}\otimes\mat{C})(\mat{D}\otimes\mat{E})
+=
+(\mat{B}\mat{D})\otimes(\mat{C}\mat{E}).
+$$
+
+Using the multivariate normal density with covariance $w_i\mat{K}_{\Sigma}$ gives
+
+$$
+\begin{aligned}
+f(\tensor{X}_i \mid w_i)
+=&
+(2\pi)^{-n^*/2}
+\left|w_i\mat{K}_{\Sigma}\right|^{-1/2} \\
+&\times
+\exp\left\{
+-\frac{1}{2}
+\left(\ve{x}_i-\ve{m}-w_i\ve{a}\right)^T
+\left(w_i\mat{K}_{\Sigma}\right)^{-1}
+\left(\ve{x}_i-\ve{m}-w_i\ve{a}\right)
+\right\}.
+\end{aligned}
+$$
+
+Now apply the determinant properties:
+
+$$
+\begin{aligned}
+\left|w_i\mat{K}_{\Sigma}\right|^{-1/2}
+&=
+\left(w_i^{n^*}|\mat{K}_{\Sigma}|\right)^{-1/2} \\
+&=
+w_i^{-n^*/2}
+\left|\mat{K}_{\Sigma}\right|^{-1/2} \\
+&=
+w_i^{-n^*/2}
+\prod_{d=1}^{D}
+|\Sigma_d|^{-n^*/(2n_d)}.
+\end{aligned}
+$$
+
+Also,
+
+$$
+\left(w_i\mat{K}_{\Sigma}\right)^{-1}
+=
+\frac{1}{w_i}\mat{P}_{\Sigma}.
+$$
+
+Therefore the correct conditional density is
+
+$$
+\begin{aligned}
+f(\tensor{X}_i \mid w_i)
+=&
+(2\pi)^{-n^*/2}
+w_i^{-n^*/2}
+\left(
+\prod_{d=1}^{D}
+|\Sigma_d|^{-n^*/(2n_d)}
+\right) \\
+&\times
+\exp\left\{
+-\frac{1}{2w_i}
+\operatorname{vec}(\tensor{X}_i-\tensor{M}-w_i\tensor{A})^T
+\left(\bigotimes_{d=1}^{D}\Sigma_d^{-1}\right)
+\operatorname{vec}(\tensor{X}_i-\tensor{M}-w_i\tensor{A})
+\right\}.
+\end{aligned}
+$$
+
+For the complete data, the joint density factors as
+
+$$
+f(\tensor{X}_i,w_i)
+=
+f(\tensor{X}_i\mid w_i)f_W(w_i).
+$$
+
+Let
+
+$$
+\ve{r}_i=\ve{x}_i-\ve{m},
+\qquad
+\delta_i=\ve{r}_i^T\mat{P}_{\Sigma}\ve{r}_i,
+\qquad
+\rho=\ve{a}^T\mat{P}_{\Sigma}\ve{a},
+\qquad
+\xi_i=\ve{r}_i^T\mat{P}_{\Sigma}\ve{a}.
+$$
+
+The quadratic term expands as
+
+$$
+\begin{aligned}
+-\frac{1}{2w_i}
+(\ve{r}_i-w_i\ve{a})^T
+\mat{P}_{\Sigma}
+(\ve{r}_i-w_i\ve{a})
+&=
+-\frac{1}{2w_i}
+\left(
+\delta_i
+-2w_i\xi_i
++w_i^2\rho
+\right) \\
+&=
+-\frac{1}{2w_i}\delta_i
++\xi_i
+-\frac{w_i}{2}\rho.
+\end{aligned}
+$$
+
+This is where the middle cross term loses its visible $w_i$: the $w_i$ from the shifted mean cancels with the $1/w_i$ from the conditional precision.
+
+Summing over $N$ observations, the complete log-likelihood can be written as
+
+$$
+\begin{aligned}
+\ell_C(\theta;\tensor{X},\ve{w})
+=&
+C
+-
+\sum_{d=1}^{D}
+\frac{Nn^*}{2n_d}\log|\Sigma_d|
++ h(\ve{w}\mid \theta_W) \\
+&+
+\sum_{i=1}^{N}\xi_i
+-
+\frac{1}{2}
+\sum_{i=1}^{N}
+\frac{1}{w_i}\delta_i
+-
+\frac{1}{2}
+\sum_{i=1}^{N}
+w_i\rho,
+\end{aligned}
+$$
+
+where the terms involving only the latent mixing distribution and the normalizing factor in $w_i$ are collected into
+
+$$
+h(\ve{w}\mid \theta_W)
+=
+\sum_{i=1}^{N}\log f_W(w_i;\theta_W)
+-
+\frac{n^*}{2}
+\sum_{i=1}^{N}\log w_i.
+$$
+
+This explains why the determinant contribution from $w_i$ is not shown beside the $\log|\Sigma_d|$ terms in the compact complete log-likelihood: it is part of $h(\ve{w}\mid\theta_W)$.
+
+### E-step
+
+At iteration $t$, the E-step takes conditional expectations with respect to
+
+$$
+W_i \mid \tensor{X}_i,\theta^{(t)}.
+$$
+
+The three expectations needed in the common M-step are
+
+$$
+\eta_i
+=
+E(W_i\mid\tensor{X}_i,\theta^{(t)}),
+\qquad
+\tau_i
+=
+E(W_i^{-1}\mid\tensor{X}_i,\theta^{(t)}),
+\qquad
+\zeta_i
+=
+E(\log W_i\mid\tensor{X}_i,\theta^{(t)}).
+$$
+
+Using the complete log-likelihood, the conditional density of $W_i$ is proportional to
+
+$$
+f(w_i\mid \tensor{X}_i,\theta^{(t)})
+\propto
+w_i^{-n^*/2}
+\exp\left\{
+-\frac{\delta_i}{2w_i}
+-\frac{\rho w_i}{2}
+\right\}
+f_W(w_i;\theta_W^{(t)}).
+$$
+
+The term $\exp(\xi_i)$ does not appear in this kernel because it does not depend on $w_i$.
+
+For the four skewed models implemented here, this posterior kernel is a generalized inverse Gaussian distribution. We use the parameterization
+
+$$
+W \sim \operatorname{GIG}(\lambda,\chi,\psi)
+$$
+
+with density proportional to
+
+$$
+w^{\lambda-1}
+\exp\left\{
+-\frac{1}{2}
+\left(
+\frac{\chi}{w}
++\psi w
+\right)
+\right\},
+\qquad
+w>0.
+$$
+
+Under this parameterization,
+
+$$
+E(W^q)
+=
+\left(\frac{\chi}{\psi}\right)^{q/2}
+\frac{
+K_{\lambda+q}(\sqrt{\chi\psi})
+}{
+K_{\lambda}(\sqrt{\chi\psi})
+},
+$$
+
+where $K_{\lambda}$ is the modified Bessel function of the third kind. This identity follows by multiplying the GIG density by $w^q$; the resulting integral has the same normalizing form with $\lambda$ replaced by $\lambda+q$.
+
+Setting $q=1$ gives
+
+$$
+\eta_i
+=
+E(W_i\mid\tensor{X}_i)
+=
+\sqrt{\frac{\chi_i}{\psi_i}}
+\frac{
+K_{\lambda_i+1}(\sqrt{\chi_i\psi_i})
+}{
+K_{\lambda_i}(\sqrt{\chi_i\psi_i})
+}.
+$$
+
+Setting $q=-1$ and using the Bessel recurrence relation gives
+
+$$
+\tau_i
+=
+E(W_i^{-1}\mid\tensor{X}_i)
+=
+\sqrt{\frac{\psi_i}{\chi_i}}
+\frac{
+K_{\lambda_i+1}(\sqrt{\chi_i\psi_i})
+}{
+K_{\lambda_i}(\sqrt{\chi_i\psi_i})
+}
+-
+\frac{2\lambda_i}{\chi_i}.
+$$
+
+Differentiating $E(W^q)$ at $q=0$ gives
+
+$$
+\zeta_i
+=
+E(\log W_i\mid\tensor{X}_i)
+=
+\frac{1}{2}\log\left(\frac{\chi_i}{\psi_i}\right)
++
+\frac{\partial}{\partial \lambda_i}
+\log K_{\lambda_i}(\sqrt{\chi_i\psi_i}).
+$$
+
+The posterior GIG parameters are obtained by combining the conditional normal kernel above with the prior density of $W_i$:
+
+$$
+\begin{array}{c|c|c|c}
+\text{Model} & \lambda_i & \chi_i & \psi_i \\
+\hline
+\text{Skewed-t} &
+-(\nu+n^*)/2 &
+\delta_i+\nu &
+\rho \\
+\text{Variance gamma} &
+\gamma-n^*/2 &
+\delta_i &
+\rho+2\gamma \\
+\text{Normal inverse Gaussian} &
+-(n^*+1)/2 &
+\delta_i+1 &
+\rho+\kappa^2 \\
+\text{Generalized hyperbolic} &
+\lambda-n^*/2 &
+\delta_i+\omega &
+\rho+\omega
+\end{array}
+$$
+
+### M-step
+
+In the M-step, replace $w_i$, $w_i^{-1}$, and $\log w_i$ in the complete log-likelihood by $\eta_i$, $\tau_i$, and $\zeta_i$. The common part of the expected complete log-likelihood is
+
+$$
+\begin{aligned}
+Q(\theta\mid\theta^{(t)})
+=&
+C
+-
+\sum_{d=1}^{D}
+\frac{Nn^*}{2n_d}\log|\Sigma_d| \\
+&+
+\sum_{i=1}^{N}
+\ve{r}_i^T\mat{P}_{\Sigma}\ve{a}
+-
+\frac{1}{2}
+\sum_{i=1}^{N}
+\tau_i
+\ve{r}_i^T\mat{P}_{\Sigma}\ve{r}_i
+-
+\frac{1}{2}
+\sum_{i=1}^{N}
+\eta_i
+\ve{a}^T\mat{P}_{\Sigma}\ve{a}
++
+Q_W,
+\end{aligned}
+$$
+
+where $Q_W$ contains the terms from $E\{\log f_W(W_i;\theta_W)\mid\tensor{X}_i\}$.
+
+First hold the covariance matrices fixed and differentiate with respect to $\ve{m}$ and $\ve{a}$. The two first-order equations are
+
+$$
+\sum_{i=1}^{N}
+\tau_i(\ve{x}_i-\ve{m})
+-
+N\ve{a}
+=
+\ve{0},
+$$
+
+and
+
+$$
+\sum_{i=1}^{N}
+(\ve{x}_i-\ve{m})
+-
+\left(\sum_{i=1}^{N}\eta_i\right)\ve{a}
+=
+\ve{0}.
+$$
+
+Let
+
+$$
+\bar{\eta}
+=
+\frac{1}{N}\sum_{i=1}^{N}\eta_i,
+\qquad
+\bar{\tau}
+=
+\frac{1}{N}\sum_{i=1}^{N}\tau_i.
+$$
+
+Solving the two linear equations gives the updates
+
+$$
+\hat{\tensor{M}}
+=
+\frac{
+\sum_{i=1}^{N}
+(\bar{\eta}\tau_i-1)\tensor{X}_i
+}{
+\sum_{i=1}^{N}
+(\bar{\eta}\tau_i-1)
+},
+$$
+
+and
+
+$$
+\hat{\tensor{A}}
+=
+\frac{
+\sum_{i=1}^{N}
+(\bar{\tau}-\tau_i)\tensor{X}_i
+}{
+\sum_{i=1}^{N}
+(\bar{\tau}\eta_i-1)
+}.
+$$
+
+The covariance updates are a weighted version of the tensor normal flip-flop update. Let
+
+$$
+\tensor{R}_i
+=
+\tensor{X}_i-\hat{\tensor{M}},
+$$
+
+and let $\Sigma_{-j}$ denote the Kronecker product of all covariance matrices except $\Sigma_j$, ordered to match the mode-$j$ matricization. Define
+
+$$
+\begin{aligned}
+\mat{S}_j
+=
+\sum_{i=1}^{N}
+\bigg[
+&\tau_i
+\tensor{R}_{i(j)}
+\Sigma_{-j}^{-1}
+\tensor{R}_{i(j)}^T \\
+&-
+\tensor{R}_{i(j)}
+\Sigma_{-j}^{-1}
+\hat{\tensor{A}}_{(j)}^T
+-
+\hat{\tensor{A}}_{(j)}
+\Sigma_{-j}^{-1}
+\tensor{R}_{i(j)}^T \\
+&+
+\eta_i
+\hat{\tensor{A}}_{(j)}
+\Sigma_{-j}^{-1}
+\hat{\tensor{A}}_{(j)}^T
+\bigg].
+\end{aligned}
+$$
+
+The part of $Q$ involving $\Sigma_j$ can be written as
+
+$$
+Q(\Sigma_j)
+=
+-
+\frac{Nn^*}{2n_j}\log|\Sigma_j|
+-
+\frac{1}{2}
+\operatorname{tr}
+\left(
+\Sigma_j^{-1}\mat{S}_j
+\right).
+$$
+
+Using the differential identities
+
+$$
+d\log|\Sigma_j|
+=
+\operatorname{tr}(\Sigma_j^{-1}d\Sigma_j),
+$$
+
+and
+
+$$
+d\operatorname{tr}(\Sigma_j^{-1}\mat{S}_j)
+=
+-
+\operatorname{tr}
+\left(
+\Sigma_j^{-1}
+d\Sigma_j
+\Sigma_j^{-1}
+\mat{S}_j
+\right),
+$$
+
+we get
+
+$$
+dQ(\Sigma_j)
+=
+\frac{1}{2}
+\operatorname{tr}
+\left[
+\left(
+-
+\frac{Nn^*}{n_j}\Sigma_j^{-1}
++
+\Sigma_j^{-1}\mat{S}_j\Sigma_j^{-1}
+\right)
+d\Sigma_j
+\right].
+$$
+
+Setting this equal to zero for every $d\Sigma_j$ gives
+
+$$
+-\frac{Nn^*}{n_j}\Sigma_j^{-1} + \Sigma_j^{-1}\mat{S}_j\Sigma_j^{-1} = \mat{0}.
+$$
+
+Multiplying on the left and right by $\Sigma_j$ gives
+
+$$
+\hat{\Sigma}_j = \frac{n_j}{Nn^*} \mat{S}_j.
+$$
+
+Since the individual Kronecker factors are identifiable only up to compensating scale changes, the algorithm rescales the covariance matrices after each update. In \pkg{tensortools}, the traces of the first $D-1$ covariance matrices are normalized to their mode dimensions, and the final covariance matrix absorbs the product of the removed scales so that the full Kronecker covariance is preserved.
 
 ## Maximum Likelihood Estimation Details {#sec:mle-details}
 
