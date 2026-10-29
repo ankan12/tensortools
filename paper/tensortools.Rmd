@@ -5,7 +5,7 @@ date-format: "YY-MM-DD"
 header-includes:
   - |
       \newcommand{\coleq}{\mathrel{\mathop:}=}
-      \newcommand{\pkg}[1]{\texttt{#1}}
+      \newcommand{\pkg}[1]{\textbf{#1}}
       \newcommand{\ve}[1]{\mathbf{#1}}
       \newcommand{\field}[1]{\mathbb{#1}}
       \newcommand{\defn}[1]{\emph{#1}}
@@ -21,7 +21,7 @@ header-includes:
       \usepackage{float}
       \usepackage{amsmath}
 abstract: >
-  tensortools is an R package for simulation, maximum likelihood estimation, and model diagnostics for tensor-variate distributions arising in multiway array data. The package implements the tensor-variate normal distribution and several normal variance–mean mixture families, including the skew-t, generalized hyperbolic, variance gamma, and normal inverse Gaussian distributions. Estimation is performed via likelihood-based and expectation–maximization algorithms under a Kronecker-separable covariance model, yielding mode-specific covariance estimates through iterative updates. Model assessment tools include comparisons of Mahalanobis distances computed from separable and unrestricted covariance estimates. In addition, tensortools provides implementations of widely used tensor decompositions for approximation and dimension reduction, including Tensor-Train decomposition via TT-SVD, Higher-Order Singular Value Decomposition (HOSVD), and Parallel Factor Analysis (CP/PARAFAC) computed using alternating least squares. The package also includes common linear algebra and tensor operations, such as matricization, the n-mode products, and the Khatri-Rao product.
+  \pkg{tensortools} is an R package for simulation, maximum likelihood estimation, and model diagnostics for tensor-variate distributions arising in multiway array data. The package implements the tensor-variate normal distribution and several normal variance–mean mixture families, including the skew-t, generalized hyperbolic, variance gamma, and normal inverse Gaussian distributions. Estimation is performed via likelihood-based and expectation–maximization algorithms under a Kronecker-separable covariance model, yielding mode-specific covariance estimates through iterative updates. Model assessment tools include comparisons of Mahalanobis distances computed from separable and unrestricted covariance estimates. In addition, tensortools provides implementations of widely used tensor decompositions for approximation and dimension reduction, including Tensor-Train decomposition via TT-SVD, Higher-Order Singular Value Decomposition (HOSVD), and Canonical Polyadic (CP) computed using alternating least squares. The package also includes common linear algebra and tensor operations, such as matricization, the n-mode products, and the Khatri-Rao product.
 draft: true
 author:
   - name: "Anupama Kannan"
@@ -31,14 +31,14 @@ author:
       - "Waco, Texas"
     email: "Anupama_Kannan1@baylor.edu"
     orcid: "0000-0003-2789-6997"
-  - name: "David Kahle"
+  - name: "David J. Kahle"
     affiliation: "Baylor University"
     address:
       - "Department of Statistics"
       - "Waco, Texas"
     email: "David_Kahle@baylor.edu"
     orcid: "0000-0002-9999-1558"
-  - name: "Michael Gallaugher"
+  - name: "Michael P.B. Gallaugher"
     affiliation: "Baylor University"
     address:
       - "Department of Statistics"
@@ -108,10 +108,28 @@ It also includes random number generation and density functions for researchers 
 
 In the following sections, we will explain the theory behind tensor variate distributions, compare related tensor software across several programming languages, explain some design choices in the package, show a simulation study, and apply the models to a real-world problem.
 
-# Tensor notation
+## Contributions
+
+The package \pkg{tensortools} contains three primary contributions. First, it contains a vctrs class called `tensor` that emphasizes having $n$ draws that are independent and identically distributed. This class lets a user easily apply operations across each draw rather than having to repetitively subset or map using base R's array object. Secondly, it provides a consistent interface for tensor operations and decompositions. Finally, it has a likelihood-based framework for tensor-variate distributions, including simulation, density evaluation, maximum likelihood estimation, and model diagnostics.  
+
+# Tensor representation and notation
 
 Tensor notation varies across disciplines, so we begin by defining the conventions and operations used in \pkg{tensortools}. 
 Tensors are a generalization of vectors and matrices, allowing us to represent multi-way data with a specific structure. 
+
+## \pkg{tensortools} tensor class
+
+The \pkg{tensortools} tensor class is an S3 `vctrs` class that is built on R's base array object. Its main benefit is that a user can specify which index contains the independent, identically distributed (IID) draws. This allows generic functions to apply to each draw separately. 
+
+For example, we can define the tensor below. Its dimensions are $3 \times 4 \times 5 \times 20$. The default print does not overflow the console compared to the behavior for a base R array. 
+```{r}
+tensor(data = rnorm(3 * 4 * 5 * 20), dim = c(3, 4, 5, 20))
+```
+
+However, a user may also be meaning to define an array containing 20 IID draws that are dimension $3 \times 4 \times 5$. They can provide an obs argument stating which index denotes that. The default print behavior emphasizes each draw by comparing the value of each index across draws. 
+```{r}
+tensor(data = rnorm(3 * 4 * 5 * 20), dim = c(3, 4, 5, 20), n = 20)
+```
 
 ## Order
 
@@ -177,6 +195,30 @@ This changes the arrangement and interpretation of entries, even though the valu
 When communicating a tensor, it is important to keep the modes consistent and keep track of what each mode represents. 
 For example, the modes of $\tensor{A}$ could represent a sensor ID, time, and location respectively. 
 
+## Matrix Rank
+Before discussing the rank of a tensor, we will show how to get the rank of a matrix. A matrix is rank 1 iff there are nonzero vectors $\ve{v} \in \field{k}^m$ and $\ve{w} \in \field{k}^n$ such that
+$\mat{M} = \ve{v} \otimes \ve{w} = \ve{w}^T \ve{v}.$
+This is equivalent to the idea that the columns of the matrix are linear multiples of each other, since multiplying a vector by another vector returns the columns of the matrix. 
+
+
+The matrix is rank $r$ iff
+$\mat{M} = \mat{M}_1 + \dots + \mat{M}_r = (\ve{v}_1 \otimes \ve{w}_1) + \dots + (\ve{v}_r \otimes \ve{w}_r)$
+where $\mat{M}_1, \dots, \mat{M}_r$ are rank 1 matrices. This notation refers to the number of linear multiples needed to reconstruct the matrix.
+
+## Tensor Rank
+Now we generalize this concept to tensors. The tensor $\tensor{T} \in \field{k}^{I_1 \times \dots \times I_n}$ is rank 1 iff there are vectors $\ve{v}_i \in \field{k}^{I_{i}}$ such that $\tensor{T} = \ve{u}_1 \otimes \ve{u}_2 \otimes \dots \otimes \ve{u}_n.$
+And the tensor is rank $r$ iff
+$\tensor{T} = \tensor{T}_1 + \dots + \tensor{T}_r = \ve{u}^{1}_{1} \otimes \ve{u}^{1}_{n} \otimes \dots \otimes \ve{u}^{r}_{1} \otimes \dots \ve{u}^{r}_{n}.$
+where $\tensor{T}_1, \dots, \tensor{T}_r$ are rank 1 tensors.
+
+## Frobenius Norm
+Let $\tensor{A} \in \field{k}^{I_1 \times I_2 \times \dots \times I_N}$ be a tensor. The Frobenius norm of this tensor is defined as @tensorDecomp
+
+$$\|\tensor{A}\| = \sqrt{\sum_{i_1 = 1}^{I_1} \sum_{i_2 = 1}^{I_2} \dots \sum_{i_N = 1}^{I_N} a(i_1, i_2, \dots i_N)^2}.$$ 
+
+This notation means that we take every value in the tensor, square them, add them up, and then take the square root of that sum. Another way to think about this is vectorizing the tensor, squaring the elements, adding them up, and then taking the square root.
+
+
 ## $n$-mode product
 
 In regular matrix multiplication, we can multiply two matrices as long as the number of columns in the first matrix matches the rows of the second matrix. 
@@ -201,7 +243,7 @@ This operation is also called the tensor times matrix product.
 This function is called `n_prod()` in the package \pkg{tensortools}. 
 It accepts a tensor, a value $n$ specifying which mode to multiply across, and a matrix. 
 For example, let us take $\ve{a} \in \field{R}^3$ and $\mat{U} \in \field{R}^{2\times 3}.$ 
-Then if we compute $\ve{a} \times_{1} \mat{U}$, we expect the final result to lie $\in \field{R}^{2}.$
+Then if we compute $\ve{a} \times_{1} \mat{U}$, we produce a vector $\in \field{R}^{2}.$
 
 ```{r}
 a_vec <- c(1, 2, 3)
@@ -211,7 +253,7 @@ n_prod(tensor = a_vec, n = 1, mat = u_mat)
 ```
 
 
-This function is supported as an infix operator with the notation `A %xn% (U~n)`, where `%xn%` is an infix operator and `n` is the mode computed across.
+This function is also available as an infix operator with the notation `A %xn% (U~n)`. Because infix operators in R can only accept two operands, the right-hand side uses the forumula `(U~n)` to supply both the matrix $\mat{U}$ and the mode index $n$. 
 
 ```{r}
 a_vec %xn% (u_mat ~ 1)
@@ -222,7 +264,7 @@ We can also do a more complex example with a tensor and a matrix.
 Here, $\tensor{A} \in \field{R}^{2 \times 3 \times 4}.$ 
 Then if we compute $\tensor{A} \times_{2} \mat{U}$, we expect the final result to have dimensions $\in \field{R}^{2 \times 2 \times 4}.$
 ```{r}
-A_tensor <- tensor(array(1:24, dim = c(2, 3, 4)))
+A_tensor <- tensor(1:24, dim = c(2, 3, 4))
 
 dim(A_tensor %xn% (u_mat ~ 2))
 ```
@@ -275,19 +317,19 @@ $$A_{(1)} = \begin{bmatrix} 1 & 5 & 9 & 13 & 17 & 21 \\
 $$
 
 ```{r}
-A <- tensor(array(1:24, dim = c(4, 3, 2)))
+A <- tensor(1:24, dim = c(4, 3, 2))
 
 matricize(A, k = 1)
 ```
 
 
-In \pkg{tensortools}, matricization is used to initialize and update mode-specific covariance matrices through ordinary matrix crossproducts.
+In \pkg{tensortools}, matricize is used to initialize and update mode-specific covariance matrices in the maximum-likelihood algorithms for tensor-variate distributions.
 
 
 # Tensor decompositions
 
 The idea of decompositions can also apply to tensors.
-The package provides the Tucker, PARAFAC, higher-order singular value, and Tensor-Train decompositions.
+The package provides the Tucker, CP, higher-order singular value, and Tensor-Train decompositions.
 
 The decompositions differ in how they represent low-dimensional structure and in how their ranks are specified:
 
@@ -297,7 +339,7 @@ latex_output <- knitr::is_latex_output()
 decomposition_table <- data.frame(
   Decomposition = c(
     "Tucker",
-    "CP/PARAFAC",
+    "CP",
     "HOSVD",
     "Tensor-Train"
   ),
@@ -332,6 +374,8 @@ knitr::kable(
 
 ## Tucker decomposition
 
+The idea behind the Tucker decomposition is similar to rank factorization for matrices. The idea of rank factorization is that any matrix $\mat{A} \in \field{k}^{m \times n}$ can be factorized in the form $\mat{A} = \mat{C} \mat{F}$ where $\mat{C} \in \field{k}^{m \times r}$ and $\mat{F} \in \field{k}^{r \times n}$, where $r$ is the rank of $\mat{A}$. The rank factorization if $\mat{A}$ is non-unique; in contrast, the singular value decomposition is a type of rank factorization that is unique. 
+
 The idea behind the Tucker decomposition is similar to rank factorization for matrices.
 The Tucker decomposition factorizes an order-$D$ tensor into a core tensor and a list of matrices [@tucker]:
 
@@ -361,16 +405,17 @@ frob_norm_diff(A_tucker, A)
 ```
 
 
-This function does already exist in the `rTensor` package. However, it requires coercing any base R array into a tensor object. Additionally, its output computes the restructured tensor and its Frobenius norm. This behavior can be quite slow depending on how large the original tensor was. 
+The \pkg{rTensor} also has a function for the Tucker decomposition. It only accepts a tensor object, so a base R array must be converted using `as.tensor().`  During each iteration, the implementation reconstructs the tensor approximation to calculate the Frobenius error. At the end, it returns both the final reconstruction and the residual norm. These calculations add computational work that becomes more substantial as the tensor dimensions increase. The current interface also displays a progress bar and does not provide an argument for disabling it. To keep the rendered output concise, the progress bar is suppressed in subsequent examples.
+
 ```{r}
 rTensor_tucker <- rTensor::tucker(rTensor::as.tensor(A), ranks = c(2, 2, 2))
 
 glimpse(rTensor_tucker) 
 ```
 
-## PARAFAC decomposition
+## CP decomposition
 
-The canonical polyadic (CP) decomposition, also called CANDECOMP/PARAFAC, represents a tensor as a sum of rank-one tensors.
+The canonical polyadic (CP) decomposition, also called CANDECOMP or PARAFAC, represents a tensor as a sum of rank-one tensors.
 PARAFAC stands for parallel factor analysis while CANDECOMP stands for canonical decomposition.
 This decomposition is a special case of the Tucker decomposition, where the core tensor is superdiagonal.
 
@@ -381,8 +426,9 @@ $$\tensor{A} \approx \sum_{r=1}^R \oneVect{\lambda}_{r} \ve{u}_{1}(:, r) \circ \
 
 where $\circ$ is a vector outer product.
 
-However, determining the rank of a tensor is an NP-hard problem, so it is difficult to determine the value of $R$ necessary to approximate the original tensor.
-The package computes this decomposition using the alternating least squares algorithm described by @CP and @CPtwo.
+Unlike matrix rank, the CP rank of a tensor is difficult to determine. Computing the exact CP rank has been shown to be an NP-hard problem, meaning no generally efficient algorithm is known for determining the rank of every tensor as its order increases. Thus, the rank $R$ is usually a user inputted argument. 
+
+The package computes a rank $R$ CP decomposition using the alternating least squares algorithm described by @CP and @CPtwo.
 For each mode, `cp()` updates the corresponding factor matrix using the mode unfolding, the Khatri--Rao product of the remaining factor matrices, and their Gram matrices.
 
 ```{r}
@@ -394,10 +440,12 @@ frob_norm_diff(A_cp, A)
 ```
 
 
-This can also be done in `rTensor`. 
-```{r}
+This can also be done in \pkg{rTensor}. 
+```{r, results='hide'}
 rTensor_cp <- rTensor::cp(rTensor::as.tensor(A), num_components = 2)
+```
 
+```{r}
 glimpse(rTensor_cp)
 ```
 
@@ -425,11 +473,13 @@ frob_norm_diff(A_hosvd, A)
 ```
 
 
-This can also be done in `rTensor`.
+This can also be done in \pkg{rTensor}.
+
+```{r, results='hide'}
+rTensor_hosvd <- rTensor::hosvd(rTensor::as.tensor(A))
+```
 
 ```{r}
-rTensor_hosvd <- rTensor::hosvd(rTensor::as.tensor(A))
-
 glimpse(rTensor_hosvd)
 ```
 
@@ -469,7 +519,7 @@ A_tt_epsilon <- tt_reconstruct(res_tt_epsilon)
 frob_norm_diff(A_tt_epsilon, A)
 ```
 
-This can be done in the package `ttTensor.` In this package, the input tensor must specifically have dimension names. It also has `rTensor` as a dependency. 
+This can be done in the package \pkg{ttTensor}. In this package, the input tensor must specifically have dimension names. It also has \pkg{rTensor} as a dependency. 
 
 ```{r}
 A_ttTensor <- A
@@ -490,7 +540,7 @@ glimpse(tt_ranks)
 The following comparison uses tensors with approximately the same number of
 elements but different orders. Each decomposition uses rank two. CP and Tucker
 are run for five fixed sweeps so that package-specific convergence rules do not
-affect the timing comparison. Input conversion to an `rTensor` object is done
+affect the timing comparison. Input conversion to an \pkg{rTensor} object is done
 before timing. Each table entry gives the median runtime followed by the total
 memory allocated during one evaluation. For CP, Tucker, and HOSVD, both
 implementations return the decomposition and a dense reconstruction; TT-SVD
@@ -716,7 +766,7 @@ benchmark_decomposition_table <- function(
 ```
 
 
-```{r decomposition-benchmark, cache=TRUE}
+```{r decomposition-benchmark, cache=TRUE, echo = FALSE}
 decomposition_benchmark <- benchmark_decomposition_table(
   cases = list(
     "Order 3: 4x4x4" = rep(4L, 3),
@@ -731,43 +781,66 @@ decomposition_benchmark <- benchmark_decomposition_table(
   seed = 2026
 )
 
-decomposition_bench <- decomposition_benchmark$table |>
-  knitr::kable(
-    caption = "Decomposition performance: median runtime / allocated memory.",
-    col.names = c(
-      "Tensor order and modes",
-      "rTensor", "tensortools", 
-      "rTensor", "tensortools", 
-      "rTensor", "tensortools", 
-      "ttTensor", "tensortools"
-    ),
-    align = c("l", rep("c", 11)),
-    booktabs = latex_output
-  ) |>
-  add_header_above(
-    c(" " = 1, "CP" = 2, "Tucker" = 2, "HOSVD" = 2, "TT-SVD" = 2),
-    bold = TRUE
-  )
+benchmark_table_data <- decomposition_benchmark$table |>
+  mutate(case = c("4^3", "4^4", "4^5", "4^6", "4^7", "4^8"))
 
-if (latex_output) {
-  decomposition_bench <- decomposition_bench |>
-    kable_styling(
-      full_width = FALSE,
-      font_size = 7,
-      latex_options = c("HOLD_position", "scale_down")
+make_decomposition_table <- function(data, caption) {
+  table_output <- data |>
+    knitr::kable(
+      caption = caption,
+      col.names = c(
+        "Tensor modes",
+        "rTensor", "tensortools",
+        "rTensor", "tensortools",
+        "rTensor", "tensortools",
+        "ttTensor", "tensortools"
+      ),
+      align = c("l", rep("c", 8)),
+      booktabs = latex_output
+    ) |>
+    add_header_above(
+      c(" " = 1, "CP" = 2, "Tucker" = 2, "HOSVD" = 2, "TT-SVD" = 2),
+      bold = TRUE
     )
-} else {
-  decomposition_bench <- decomposition_bench |>
-    kable_styling(
-      full_width = FALSE,
-      bootstrap_options = c("striped", "hover", "condensed", "responsive")
-    )
+
+  if (latex_output) {
+    table_output |>
+      kable_styling(
+        full_width = FALSE,
+        font_size = 7,
+        latex_options = c("HOLD_position", "scale_down")
+      )
+  } else {
+    table_output |>
+      kable_styling(
+        full_width = FALSE,
+        bootstrap_options = c("striped", "hover", "condensed", "responsive")
+      )
+  }
 }
 
-decomposition_bench
+decomposition_runtime_table <- benchmark_table_data |>
+  mutate(across(-case, ~ sub(" / .*", "", .x))) |>
+  make_decomposition_table(
+    caption = "Decomposition runtime: median elapsed time."
+  )
+
+decomposition_memory_table <- benchmark_table_data |>
+  mutate(across(-case, ~ sub(".* / ", "", .x))) |>
+  make_decomposition_table(
+    caption = "Decomposition memory usage: allocated memory."
+  )
 ```
 
-```{r, fig.cap = "The plots from left to right show the Rosenblatt transformation being applied sequentially. The leftmost plot contains the points of the original data, the middle has $X_{1}$ transformed into $U_{1}$, and the right has $X_{2}$ transformed into $U_{2}$."}
+```{r decomposition-runtime-table, echo=FALSE}
+decomposition_runtime_table
+```
+
+```{r decomposition-memory-table, echo=FALSE}
+decomposition_memory_table
+```
+
+```{r, fig.cap = "The plot compares the runtime between other packages and tensortools.", fig.height = 8, echo = FALSE}
 # decomposition_benchmark$results |> 
 #   filter(package != "tensortools (no reconstruct)") |> 
 #   ggplot() +
@@ -782,7 +855,7 @@ runtime_plot <-
   geom_line(alpha = 0.6) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_x_continuous(breaks = sort(unique(decomposition_benchmark$results$order))) +
-  scale_y_log10() + 
+  scale_y_log10(labels = scales::label_log()) + 
   labs(x = "Tensor order", y = "Median runtime (seconds)", color = "Package") +
   theme_minimal() 
 
@@ -794,12 +867,16 @@ memory_plot <-
   geom_line(alpha = 0.6) +
   geom_point(size = 2.5, alpha = 0.8) +
   scale_x_continuous(breaks = sort(unique(decomposition_benchmark$results$order))) +
-  scale_y_log10() +
+  scale_y_log10(labels = scales::label_log()) +
   labs(x = "Tensor order", y = "Memory (bytes)", color = "Package") +
   theme_minimal() 
   
-(runtime_plot/memory_plot) + 
-  plot_layout(guides = "collect", axes = "collect") &
+runtime_plot +
+  theme(legend.position = "bottom")
+```
+
+```{r, fig.cap = "The plot compares the memory usage between other packages and tensortools.", fig.height = 8, echo = FALSE}
+memory_plot +
   theme(legend.position = "bottom")
 ```
 
@@ -1838,7 +1915,7 @@ loo_comparison
 
 # Discussion
 
-The package `tensortools` provides support for tensor variate distributions, allowing for random number generation, density calculation, and MLE estimation.
+The package \pkg{tensortools} provides support for tensor variate distributions, allowing for random number generation, density calculation, and MLE estimation.
 
 # Reproducibility
 
@@ -2280,6 +2357,579 @@ six times as many mean entries as the PS tensor and combine PS color encoding
 with RGBL illumination changes; with only 200 training units, that adds
 variation the model must absorb. This explanation is consistent with the
 results, but would need targeted ablation and independent test data to confirm. -->
+
+
+## Hyperspectral wheat-seed example
+
+Hyperspectral images provide a natural illustration of the distinction between
+tensor modes and independent observations. Each wheat seed is one tensor-valued
+observation whose modes represent vertical position, horizontal position, and
+wavelength. The collection of seed images is therefore stored as one
+tensor object.
+
+
+```{r, echo = FALSE}
+library(tidyverse)
+
+path <- "/Users/anupamakannan/Downloads/Hyperspectral data of wheat seeds/Hyperspectral dataset of wheat seeds/yangmai6/S-2"
+
+files <- list.files(
+  path,
+  recursive = TRUE,
+  full.names = TRUE
+)
+
+library(R.matlab)
+
+mat_files <- files[str_detect(files, "\\.mat$")]
+
+# Examine the first file
+dat <- readMat(mat_files[1])
+
+names(dat)
+map(dat, dim)
+
+library(tidyverse)
+library(R.matlab)
+
+read_kernel <- function(file) {
+  readMat(file)$hyperspectral.data
+}
+
+reduce_cube <- function(cube) {
+  d <- dim(cube)
+
+  # Common relative spatial coordinates
+  rows <- round(seq(.25 * d[1], .75 * d[1], length.out = 8))
+  cols <- round(seq(.25 * d[2], .75 * d[2], length.out = 8))
+
+  # Common wavelength indices
+  bands <- round(seq(1, d[3], length.out = 24))
+
+  cube[rows, cols, bands, drop = FALSE]
+}
+
+# IMPORTANT: first restrict files to one cultivar and one view
+kernel_files <- mat_files
+
+X <- array(
+  NA_real_,
+  #dim = c(length(kernel_files), 10, 16, 300)
+  dim = c(length(kernel_files), 8, 8, 24)
+)
+
+for (i in seq_along(kernel_files)) {
+  cube <- read_kernel(kernel_files[i])
+  X[i, , , ] <- reduce_cube(cube)
+}
+
+wheat_cube <- as_tensor(X, obs = 1)
+```
+
+Reading in the files, we now have 191 independent, identically distributed draws of a hyperspectral cube. Each draw is of shape $8 \times 8 \times 24$. Each value represents the wavelength measured at the two spatial coordinates. We can plot selected slices to show what one of these cubes looks like.  
+
+```{r}
+wheat_cube
+```
+
+```{r wheat-cube-stack, echo=FALSE, warning=FALSE, message=FALSE, fig.width=7, fig.height=7}
+library(plot3D)
+
+# Use the original-resolution cube for the clearest image.
+# Replace with pull_draw(wheat_cube, 1) to use the reduced 8 x 8 x 24 cube.
+cube <- read_kernel(kernel_files[1])
+
+# Optionally reduce only the spatial resolution to keep rendering manageable.
+row_id <- unique(round(seq(1, dim(cube)[1], length.out = min(80, dim(cube)[1]))))
+col_id <- unique(round(seq(1, dim(cube)[2], length.out = min(80, dim(cube)[2]))))
+
+cube_display <- cube[row_id, col_id, , drop = FALSE]
+
+# Put horizontal position on x and vertical position on y.
+cube_display <- aperm(cube_display, c(2, 1, 3))
+
+# Display seven wavelength slices across the measured spectrum.
+shown_bands <- unique(
+  round(seq(1, dim(cube_display)[3], length.out = 7))
+)
+
+slice3D(
+  x = seq_len(dim(cube_display)[1]),
+  y = seq_len(dim(cube_display)[2]),
+  z = seq_len(dim(cube_display)[3]),
+  colvar = cube_display,
+
+  # Draw wavelength planes only.
+  xs = NULL,
+  ys = NULL,
+  zs = shown_bands,
+
+  col = hcl.colors(150, "Inferno"),
+  clim = range(cube_display, finite = TRUE),
+  clab = "Reflectance",
+
+  theta = 135,
+  phi = 25,
+  xlab = "Horizontal position",
+  ylab = "Vertical position",
+  zlab = "Wavelength band",
+  main = "Selected wavelength slices from a hyperspectral cube",
+
+  ticktype = "detailed",
+  bty = "b",
+  border = NA
+)
+```
+
+```{r, echo=FALSE, eval=knitr::is_html_output()}
+library(plotly)
+
+# Extract one 8 x 8 x 24 hyperspectral cube from the tensor sample.
+cube <- unclass(pull_draw(wheat_cube, 1))
+cube <- array(cube, dim = draw_shape(wheat_cube))
+
+# Coordinates must follow R's array-vectorization order.
+cube_df <- expand.grid(
+  row = seq_len(dim(cube)[1]),
+  column = seq_len(dim(cube)[2]),
+  band = seq_len(dim(cube)[3])
+)
+
+cube_df$reflectance <- as.vector(cube)
+
+# Avoid letting a few extreme values determine the visible surfaces.
+display_limits <- quantile(
+  cube_df$reflectance,
+  probs = c(0.05, 0.95),
+  na.rm = TRUE
+)
+
+plot_ly(
+  cube_df,
+  x = ~column,
+  y = ~row,
+  z = ~band,
+  value = ~reflectance,
+  type = "volume",
+  isomin = unname(display_limits[1]),
+  isomax = unname(display_limits[2]),
+  opacity = 0.12,
+  surface = list(count = 15),
+  colorscale = "Viridis",
+  colorbar = list(title = "Reflectance"),
+  caps = list(
+    x = list(show = FALSE),
+    y = list(show = FALSE),
+    z = list(show = FALSE)
+  ),
+  hovertemplate = paste(
+    "Column: %{x}",
+    "<br>Row: %{y}",
+    "<br>Band: %{z}",
+    "<br>Reflectance: %{value:.4f}",
+    "<extra></extra>"
+  )
+) |>
+  layout(
+    title = "Hyperspectral cube for seed 1",
+    scene = list(
+      xaxis = list(title = "Column"),
+      yaxis = list(title = "Row"),
+      zaxis = list(title = "Selected wavelength band"),
+      aspectmode = "manual",
+      aspectratio = list(x = 1, y = 1, z = 2)
+    )
+  )
+```
+
+We compare the tensor-variate normal model with the matricizations. First, we split the data into 152 train and 39 test. The tensor-variate model had the smallest BIC, as it estimates significantly way less parameters. It has slightly less total log likelihood on the test set. 
+
+```{r wheat-held-out-likelihood}
+set.seed(2026)
+
+n <- n_draws(wheat_cube)
+train_id <- sample(seq_len(n), size = floor(0.8 * n))
+test_id <- setdiff(seq_len(n), train_id)
+
+wheat_train <- as_tensor(X[train_id, , , , drop = FALSE], obs = 1)
+wheat_test <- as_tensor(X[test_id, , , , drop = FALSE], obs = 1)
+
+# Fit the separable tensor-normal model and evaluate each held-out seed.
+tensor_fit <- tensor_mle(wheat_train, model = "normal", quiet = FALSE)
+mat1_fit <- tensor_mle(matricize(wheat_train, 1), model = "normal")
+mat2_fit <- tensor_mle(matricize(wheat_train, 2), model = "normal")
+mat3_fit <- tensor_mle(matricize(wheat_train, 3), model = "normal")
+
+sigma_plots <- imap(tensor_fit$sigmas, function(sigma, i) {
+  plot_matrix(cov2cor(sigma), bquote(Sigma[.(i)])) +
+    labs(x = "Column", y = "Row", fill = "Correlation") +
+    scale_fill_gradient2(
+      low = "#2166AC", mid = "white", high = "#B2182B",
+      midpoint = 0.5, limits = c(-0.1, 1),
+      breaks = seq(-1, 1, by = 0.5)
+    ) +
+    coord_fixed() +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5)
+    )
+})
+
+wrap_plots(sigma_plots, ncol = 2, guides = "collect") &
+  theme(legend.position = "bottom")
+
+res <-
+  tibble(model = c("tensor", "mat1", "mat2", "mat3"), 
+       BIC = c(tensor_fit$BIC, mat1_fit$BIC, mat2_fit$BIC, 
+               mat3_fit$BIC),
+        k = c(tensor_fit$k, mat1_fit$k, mat2_fit$k, mat3_fit$k),
+        loglik = c(tensor_fit$loglik, mat1_fit$loglik, mat2_fit$loglik, mat3_fit$loglik),
+        test_likelihood = 
+        c(sum(dtnorm(wheat_test, mu = tensor_fit$mu, sigmas = tensor_fit$sigmas, log = TRUE)),
+          sum(dtnorm(matricize(wheat_test, 1), mu = mat1_fit$mu, sigmas = mat1_fit$sigmas, log = TRUE)),
+          sum(dtnorm(matricize(wheat_test, 2), mu = mat2_fit$mu, sigmas = mat2_fit$sigmas, log = TRUE)),
+          sum(dtnorm(matricize(wheat_test, 3), mu = mat3_fit$mu, sigmas = mat3_fit$sigmas, log = TRUE)))) |> 
+        arrange(BIC)
+
+res |> arrange(test_likelihood)
+```
+
+
+We can observe the correlation structure that the tensor variate model suggests. The first correlation matrix shows mostly weak correlations, except for a spot of strong correlation between positions 4 and 5. The second correlation matrix has moderately positive correlations across positions that are closer together. Finally, the third correlation matrix has strong correlation between the wavelenghts. 
+
+```{r}
+axis_labels <- c(
+  "Vertical pos",
+  "Horizontal pos",
+  "Wavelength band"
+)
+
+sigma_plots <- imap(tensor_fit$sigmas, function(sigma, i) {
+  plot_matrix(cov2cor(sigma), bquote(Sigma[.(i)])) +
+    labs(x = axis_labels[i], y = axis_labels[i], fill = "Correlation") +
+    scale_fill_gradient2(
+      low = "#2166AC", mid = "white", high = "#B2182B",
+      midpoint = 0, limits = c(-1, 1),
+      breaks = seq(-1, 1, by = 0.5)
+    ) +
+    coord_fixed() +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5)
+    )
+})
+
+wrap_plots(sigma_plots, ncol = 2, guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+We can contrast these covariance matrices with the results from the matricizations. The matricization that had the highest test-set log-likelihood was along mode 1. Below are the two correlation matrices generated from this model. The second matrix combines horizontal position and wavelength, making its covariance structure much harder to interpret.
+
+```{r}
+axis_labels <- c(
+  "Vertical pos",
+  "Horizontal pos × wavelength band"
+)
+
+sigma_plots <- imap(mat1_fit$sigmas, function(sigma, i) {
+  plot_matrix(cov2cor(sigma), bquote(Sigma[.(i)])) +
+    labs(x = axis_labels[i], y = axis_labels[i], fill = "Correlation") +
+    scale_fill_gradient2(
+      low = "#2166AC", mid = "white", high = "#B2182B",
+      midpoint = 0, limits = c(-1, 1),
+      breaks = seq(-1, 1, by = 0.5)
+    ) +
+    coord_fixed() +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(hjust = 0.5)
+    )
+})
+
+wrap_plots(sigma_plots, ncol = 2, guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+### Cultivar classification by likelihood
+
+The cultivar labels also permit a simple generative classification example. We
+compare a tensor-variate normal classifier with matrix-variate normal
+classifiers obtained by matricizing each of the three modes. For each of three
+random splits, 80\% of the kernels from every cultivar are used for training and
+the remaining 20\% are held out. A separate distribution is fitted to each
+cultivar, and a held-out kernel is assigned to the cultivar whose fitted model
+gives it the largest log-likelihood. Thus, this example uses equal class priors
+and does not require a separate discriminative classifier.
+
+```{r wheat-cultivar-classification, message=FALSE, cache=TRUE}
+dataset_root <- dirname(dirname(path))
+
+cultivar_ids <- c("fanmai8", "jinan17", "xingmai13", "yangmai6")
+cultivar_labels <- c(
+  fanmai8 = "Fanmai 8",
+  jinan17 = "Jinan 17",
+  xingmai13 = "Xingmai 13",
+  yangmai6 = "Yangmai 6"
+)
+
+read_cultivar_tensor <- function(cultivar, view = "S-2") {
+  cultivar_files <- sort(list.files(
+    file.path(dataset_root, cultivar, view),
+    pattern = "\\.mat$",
+    full.names = TRUE
+  ))
+
+  cultivar_array <- array(
+    NA_real_,
+    dim = c(length(cultivar_files), 8L, 8L, 24L)
+  )
+
+  for (i in seq_along(cultivar_files)) {
+    cultivar_array[i, , , ] <-
+      reduce_cube(read_kernel(cultivar_files[i]))
+  }
+
+  as_tensor(cultivar_array, obs = 1)
+}
+
+# Store the observations from each cultivar as a separate tensor object.
+cultivar_tensors <- map(cultivar_ids, read_cultivar_tensor)
+names(cultivar_tensors) <- unname(cultivar_labels[cultivar_ids])
+
+# Each function supplies the representation used by one classifier.
+classification_methods <- list(
+  "Tensor normal" = identity,
+  "Mode-1 matrix normal" = function(x) matricize(x, 1L),
+  "Mode-2 matrix normal" = function(x) matricize(x, 2L),
+  "Mode-3 matrix normal" = function(x) matricize(x, 3L)
+)
+
+run_classification_split <- function(seed) {
+  set.seed(seed)
+
+  # The split is performed once and shared by all four representations.
+  cultivar_splits <- map(cultivar_tensors, function(x) {
+    train_size <- floor(0.8 * n_draws(x))
+    train_id <- sample(seq_len(n_draws(x)), train_size)
+
+    list(
+      train = x[train_id],
+      test = x[-train_id]
+    )
+  })
+
+  imap_dfr(classification_methods, function(transform, method) {
+    cultivar_fits <- map(cultivar_splits, function(split) {
+      tensor_mle(
+        transform(split$train),
+        model = "normal",
+        max_iter = 100,
+        tol = 1e-4
+      )
+    })
+
+    imap_dfr(cultivar_splits, function(split, true_cultivar) {
+      test_data <- transform(split$test)
+
+      score_matrix <- vapply(
+        cultivar_fits,
+        function(fit) dtnorm(
+          test_data,
+          mu = fit$mu,
+          sigmas = fit$sigmas,
+          log = TRUE
+        ),
+        numeric(n_draws(test_data))
+      )
+
+      # Use the exact maximum rather than a tolerance-based tie rule.
+      best_model <- apply(score_matrix, 1L, which.max)
+      predicted_cultivar <- names(cultivar_fits)[best_model]
+
+      bind_cols(
+        tibble(
+          split = seed,
+          method = method,
+          truth = true_cultivar,
+          observation = seq_len(n_draws(test_data)),
+          predicted = predicted_cultivar,
+          correct = predicted_cultivar == true_cultivar
+        ),
+        as_tibble(score_matrix, .name_repair = "minimal")
+      )
+    })
+  })
+}
+
+split_seeds <- 2026:2028
+classification_predictions <- map_dfr(
+  split_seeds,
+  run_classification_split
+)
+
+classification_by_split <- classification_predictions |>
+  group_by(split, method) |>
+  summarize(accuracy = mean(correct), .groups = "drop") |>
+  arrange(split, desc(accuracy))
+
+classification_summary <- classification_by_split |>
+  group_by(method) |>
+  summarize(
+    mean_accuracy = mean(accuracy),
+    sd_accuracy = sd(accuracy),
+    minimum = min(accuracy),
+    maximum = max(accuracy),
+    .groups = "drop"
+  ) |>
+  arrange(desc(mean_accuracy))
+
+classification_confusion <- classification_predictions |>
+  count(method, truth, predicted)
+
+classification_by_split
+classification_summary
+```
+
+Across the three splits, the mode-1 matrix-normal classifier has the highest
+mean accuracy at 92.9\%, followed by mode 2 at 90.8\%, mode 3 at 89.1\%, and the
+tensor-normal classifier at 88.2\%. In this setting, therefore, retaining the
+three-way representation improves interpretability and parsimony but does not
+produce the highest classification accuracy. The complete class-specific
+log-likelihoods are retained in `classification_predictions`, and the aggregate
+confusion counts are retained in `classification_confusion`.
+
+To examine the effect of training-sample size, we repeat the classification
+experiment using 10, 20, 30, and 50 training kernels per cultivar. Within each
+random split, the 20\% test set is held fixed across all training sizes and
+representations. The training sets are nested, so that increasing the sample
+size adds observations without replacing those already used.
+
+```{r wheat-classification-learning-curve, message=FALSE, cache=TRUE, fig.width=7, fig.height=4.5}
+training_sizes <- c(10L, 20L, 30L, 50L)
+
+run_learning_curve_split <- function(seed) {
+  set.seed(seed)
+
+  # Reserve one fixed 20% test set and create a randomized 80% training pool.
+  cultivar_learning_splits <- map(cultivar_tensors, function(x) {
+    shuffled_id <- sample(seq_len(n_draws(x)))
+    pool_size <- floor(0.8 * n_draws(x))
+
+    list(
+      training_pool = shuffled_id[seq_len(pool_size)],
+      test = x[shuffled_id[-seq_len(pool_size)]]
+    )
+  })
+
+  map_dfr(training_sizes, function(train_size) {
+    imap_dfr(classification_methods, function(transform, method) {
+      cultivar_fits <- map2(
+        cultivar_tensors,
+        cultivar_learning_splits,
+        function(x, split) {
+          train_id <- split$training_pool[seq_len(train_size)]
+
+          tensor_mle(
+            transform(x[train_id]),
+            model = "normal",
+            max_iter = 100,
+            tol = 1e-4
+          )
+        }
+      )
+
+      correct_by_cultivar <- imap_int(
+        cultivar_learning_splits,
+        function(split, true_cultivar) {
+          test_data <- transform(split$test)
+
+          score_matrix <- vapply(
+            cultivar_fits,
+            function(fit) dtnorm(
+              test_data,
+              mu = fit$mu,
+              sigmas = fit$sigmas,
+              log = TRUE
+            ),
+            numeric(n_draws(test_data))
+          )
+
+          predicted <- names(cultivar_fits)[
+            apply(score_matrix, 1L, which.max)
+          ]
+
+          sum(predicted == true_cultivar)
+        }
+      )
+
+      tibble(
+        split = seed,
+        train_per_cultivar = train_size,
+        method = method,
+        accuracy = sum(correct_by_cultivar) /
+          sum(map_int(cultivar_learning_splits, ~n_draws(.x$test)))
+      )
+    })
+  })
+}
+
+learning_curve_results <- map_dfr(
+  split_seeds,
+  run_learning_curve_split
+)
+
+learning_curve_summary <- learning_curve_results |>
+  group_by(train_per_cultivar, method) |>
+  summarize(
+    mean_accuracy = mean(accuracy),
+    sd_accuracy = sd(accuracy),
+    .groups = "drop"
+  )
+
+ggplot(
+  learning_curve_summary,
+  aes(
+    x = train_per_cultivar,
+    y = mean_accuracy,
+    color = method,
+    shape = method,
+    group = method
+  )
+) +
+  geom_errorbar(
+    aes(
+      ymin = mean_accuracy - sd_accuracy,
+      ymax = mean_accuracy + sd_accuracy
+    ),
+    width = 1.5,
+    alpha = 0.5
+  ) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  scale_x_continuous(breaks = training_sizes) +
+  scale_y_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    limits = c(0.65, 0.95),
+    breaks = seq(0.65, 0.95, by = 0.05)
+  ) +
+  labs(
+    x = "Training kernels per cultivar",
+    y = "Mean classification accuracy",
+    color = "Representation",
+    shape = "Representation"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+The tensor-normal classifier has the highest mean accuracy with 10, 30, and 50
+training kernels per cultivar. With 20 kernels, the mode-3 matrix-normal model
+is higher by approximately 0.6 percentage points. Thus, the tensor model is
+particularly competitive in the small-sample setting, while the mode-3
+matricization remains a strong alternative because it retains wavelength as a
+separate matrix mode. Several matrix-normal fits at the smallest training sizes
+reached the common 100-iteration limit, indicating that their covariance
+estimation was less stable in the low-sample setting.
 
 # Appendix {#sec:appendix}
 
